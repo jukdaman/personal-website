@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>JUK Portfolio</title>
+  
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/window.css">
+</head>
+<body>
+  <!-- Loading Overlay (초기 진입 시 보이는 스피너) -->
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- 바탕화면: 추후 JS 애니메이션 적용 공간 -->
+  <div id="background-container">
+    <canvas id="background-canvas"></canvas>
+  </div>
+
+  <!-- 데스크탑 영역: 윈도우 창들이 동적으로 주입될 컨테이너 -->
+  <main id="desktop-area"></main>
+
+  <!-- 하단 네비게이션: 1차(Primary) 창들을 연다 -->
+  <nav id="bottom-nav">
+    <button class="nav-btn" data-target="about">ABOUT</button>
+    <button class="nav-btn" data-target="work">WORK</button>
+    <button class="nav-btn" data-target="careers">CAREERS</button>
+    <button class="nav-btn" data-target="contact">CONTACT</button>
+  </nav>
+
+  <!-- 윈도우 컴포넌트를 위한 템플릿(JS에서 활용) -->
+  <template id="window-template">
+    <div class="os-window" tabindex="-1">
+      <div class="window-titlebar">
+        <div class="window-title">Window Title</div>
+        <div class="window-controls">
+          <button class="win-btn minimize-btn" aria-label="Minimize">—</button>
+          <button class="win-btn close-btn" aria-label="Close">X</button>
+        </div>
+      </div>
+      <div class="window-content-area">
+        <div class="window-document allow-select">
+          <!-- Content gets injected here -->
+        </div>
+      </div>
+      <!-- Resize Handle (8방향) -->
+      <div class="resize-handle n"></div>
+      <div class="resize-handle e"></div>
+      <div class="resize-handle s"></div>
+      <div class="resize-handle w"></div>
+      <div class="resize-handle ne"></div>
+      <div class="resize-handle nw"></div>
+      <div class="resize-handle se"></div>
+      <div class="resize-handle sw"></div>
+    </div>
+  </template>
+
+  <!-- JavaScript -->
+  <script src="js/background.js"></script>
+  <script src="js/WindowManager.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

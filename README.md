@@ -1,14 +1,18 @@
-# Personal Portfolio Website
+# JUK's Window-based Portfolio
 
-개인 포트폴리오 웹사이트입니다.
+바닐라(Vanilla) HTML/CSS/JS로 구현된 'OS 창(Window)' 기반의 웹사이트 포트폴리오입니다.
 
-## 🛠 Tech Stack
-- **HTML5** : 시맨틱 웹 구조
-- **CSS3 (Vanilla)** : 프리미엄 다크 모드, 글래스모피즘, 커스텀 프로퍼티(변수), 마이크로 애니메이션
-- **JavaScript (Vanilla)** : 부드러운 스크롤, 동적 상호작용 및 Intersection Observer를 활용한 등장 애니메이션
+## 🛠 Tech Stack & Architecture
+- **HTML5 / CSS3** : 프레임워크 없는 순수 바닐라 환경. 600x800px 규격의 창 UI 및 767px 이하 풀스크린 모바일 대응.
+- **JavaScript (Vanilla)** :
+  - `WindowManager`: 1차/2차 창을 독립적으로 생성하고 생명주기를 관리하는 팩토리 클래스. 싱글턴 패턴 적용.
+  - **고성능 렌더링 최적화**: `requestAnimationFrame`, `transform: translate3d(x, y, 0)`, `pointer-events` 제어를 통한 부드러운 60fps 드래그 & 리사이즈 상호작용.
 
 ## 🚀 로컬 실행 방법
-이 프로젝트는 순수 HTML/CSS/JS로 구성되어 있으므로 별도의 빌드 과정 없이 `index.html`을 브라우저에서 열거나, VSCode의 **Live Server** 확장 프로그램을 사용하여 즉시 확인할 수 있습니다.
+이 프로젝트는 순수 HTML/CSS/JS로 구성되어 있으므로 별도의 빌드 과정 없이 `index.html`을 브라우저에서 직접 열거나, VSCode의 **Live Server** 확장 프로그램을 사용하여 테스트할 수 있습니다.
 
-## 🤖 Antigravity Context
-안티그래비티(AI)와의 협업을 위한 작업 규칙과 배경 지식은 `.agents/workflows/context.md`에 기재되어 있습니다. 다른 PC에서 작업을 이어갈 때 이 저장소를 Clone 받아 진행하면 이전의 작업 컨텍스트를 유지할 수 있습니다.
+## 🤖 AI Context & State Session
+이 프로젝트는 AI 에이전트와 함께 구축 중입니다. 세션이 끊기더라도 컨텍스트를 이어가기 위해 아래 파일들에 상태가 지속적으로 기록됩니다:
+- `TODO.md`: 현재 작업 진행도 및 다음 번 작업 목표.
+- `.agents/workflows/context.md`: 디자인 시스템 시안 및 프로젝트 코딩 규칙.
+AI는 작업 전 위 두 문서를 반드시 참고하여 현재 맥락을 파악합니다.

@@ -1,0 +1,150 @@
+/* window.css */
+
+/* 창 컴포넌트 루트 */
+.os-window {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 600px; /* 기본 크기 */
+  height: 800px;
+  background-color: #fff;
+  border: 1px solid #000;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  pointer-events: auto; /* 데스크탑 area가 none이므로 자식에서 auto 선언 필수 */
+  outline: none;
+  
+  /* will-change 적용으로 브라우저 렌더링(GPU) 최적화 */
+  will-change: transform, width, height;
+}
+
+/* 드래그 및 리사이즈 도중에는 내부 iframe, 이미지 등에 이벤트 뺏기지 않도록 차단 */
+.os-window.is-moving .window-content-area,
+.os-window.is-moving .window-titlebar {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* 타이틀바 (검정 배경, 우측 버튼) */
+.window-titlebar {
+  background-color: #000;
+  color: #fff;
+  height: 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+  cursor: grab; /* 드래그 가능 표시 */
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.window-titlebar:active {
+  cursor: grabbing;
+}
+
+.window-title {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  /* 제목이 길 때 생략 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 20px;
+}
+
+.window-controls {
+  display: flex;
+  gap: 12px;
+}
+
+.win-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+  font-family: sans-serif; /* 기호가 명확히 보이도록 */
+}
+
+.win-btn:hover {
+  opacity: 1;
+}
+
+/* 내부 콘텐츠 영역 (흰색 바탕, 커스텀 스크롤) */
+.window-content-area {
+  flex: 1;
+  background-color: #fff;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  /* 부드러운 스크롤 */
+  -webkit-overflow-scrolling: touch; 
+  padding: 20px; /* 가장자리의 드래그 전용 빈 공간 */
+}
+
+/* 실제 텍스트 및 콘텐츠가 담기는 문서 영역 (선택 가능, hug) */
+.window-document {
+  padding-bottom: 40px; /* 창 내부 여력을 위한 하단 패딩 */
+  position: relative;
+}
+
+/* 커스텀 얇은 스크롤바 (Webkit) */
+.window-content-area::-webkit-scrollbar {
+  width: 6px;
+}
+.window-content-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+.window-content-area::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+.window-content-area::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+/* --- 리사이즈 핸들 (8방향) --- */
+.resize-handle {
+  position: absolute;
+  z-index: 10;
+}
+
+.resize-handle.n { top: -4px; left: 0; width: 100%; height: 8px; cursor: ns-resize; }
+.resize-handle.s { bottom: -4px; left: 0; width: 100%; height: 8px; cursor: ns-resize; }
+.resize-handle.e { top: 0; right: -4px; width: 8px; height: 100%; cursor: ew-resize; }
+.resize-handle.w { top: 0; left: -4px; width: 8px; height: 100%; cursor: ew-resize; }
+.resize-handle.ne { top: -4px; right: -4px; width: 12px; height: 12px; cursor: nesw-resize; }
+.resize-handle.nw { top: -4px; left: -4px; width: 12px; height: 12px; cursor: nwse-resize; }
+.resize-handle.se { bottom: -4px; right: -4px; width: 12px; height: 12px; cursor: nwse-resize; }
+.resize-handle.sw { bottom: -4px; left: -4px; width: 12px; height: 12px; cursor: nesw-resize; }
+
+
+/* --- 모바일 뷰 (<767px) --- */
+/* 창들을 화면 꽉 채우는 절대 패널로 변경 */
+@media (max-width: 767px) {
+  .os-window {
+    width: 100% !important;
+    height: 100% !important;
+    top: 0 !important;
+    left: 0 !important;
+    transform: none !important; /* 드래그 위치 무시 */
+    border: none;
+    box-shadow: none;
+    will-change: auto;
+  }
+  
+  .window-titlebar {
+    cursor: default; /* 모바일은 드래그 불가 */
+  }
+
+  .resize-handle {
+    display: none; /* 모바일은 리사이즈 불가 */
+  }
+}
