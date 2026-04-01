@@ -103,13 +103,27 @@ class WindowManager {
     if (this.windows.has(id)) {
       const win = this.windows.get(id);
       
-      // 닫기 직전의 창 상태 기억
-      this.windowStates.set(id, {
-        x: win.x,
-        y: win.y,
-        width: win.width,
-        height: win.height
-      });
+      // 닫기 직전의 창 상태 기억 
+      // 만약 닫힐 때 최대화 상태라면, 화면에 꽉 찬 상태가 아니라 최대화 이전(원래) 상태를 기록
+      let savedState;
+      if (win.isMaximized && win.preMaximizeState) {
+        savedState = {
+          x: win.preMaximizeState.x,
+          y: win.preMaximizeState.y,
+          width: win.preMaximizeState.width,
+          height: win.preMaximizeState.height,
+          centerRatioX: win.preMaximizeState.centerRatioX
+        };
+      } else {
+        savedState = {
+          x: win.x,
+          y: win.y,
+          width: win.width,
+          height: win.height,
+          centerRatioX: win.centerRatioX
+        };
+      }
+      this.windowStates.set(id, savedState);
 
       win.destroy();
       this.windows.delete(id);
@@ -147,6 +161,7 @@ class WindowInstance {
       this.y = savedState.y;
       this.width = savedState.width;
       this.height = savedState.height;
+      if (savedState.centerRatioX !== undefined) this.centerRatioX = savedState.centerRatioX;
     } else {
       this.width = this.config.width;
       this.height = this.config.height;
@@ -187,7 +202,9 @@ class WindowInstance {
     this.updateTransform();
     
     // 초기 렌더링 직후 현재 화면 대비 중앙 X좌표 비율값 기억 (100% 밀림 없는 리사이징 위함)
-    this.centerRatioX = (this.x + this.width / 2) / window.innerWidth;
+    if (this.centerRatioX === undefined) {
+      this.centerRatioX = (this.x + this.width / 2) / window.innerWidth;
+    }
   }
 
   createElement() {
@@ -209,6 +226,10 @@ class WindowInstance {
       this.element.style.transform = '';
       this.element.style.width = '100%';
       this.element.style.height = '100%';
+    } else if (this.isMaximized) {
+      this.element.style.transform = `translate3d(0px, 0px, 0)`;
+      this.element.style.width = `100vw`;
+      this.element.style.height = `100vh`;
     } else {
       this.element.style.transform = `translate3d(${this.x}px, ${this.y}px, 0)`;
       this.element.style.width = `${this.width}px`;
@@ -221,7 +242,7 @@ class WindowInstance {
   bindEvents() {
     const titleBar = this.element.querySelector('.window-titlebar');
     const closeBtn = this.element.querySelector('.close-btn');
-    const minimizeBtn = this.element.querySelector('.minimize-btn');
+    const maximizeBtn = this.element.querySelector('.maximize-btn');
 
     // 창 포커스 처리
     this.element.addEventListener('mousedown', () => this.manager.bringToFront(this));
@@ -233,11 +254,13 @@ class WindowInstance {
       this.manager.closeWindow(this.id);
     });
     
-    // 현재 최소화 버튼은 아무런 동작도 하지 않거나 닫기로 매핑
-    minimizeBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      // 최소화 로직은 추후 필요시 Taskbar와 연동
-    });
+    // 최대화 버튼 동작
+    if(maximizeBtn) {
+      maximizeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleMaximize();
+      });
+    }
 
     const contentArea = this.element.querySelector('.window-content-area');
 
@@ -258,6 +281,7 @@ class WindowInstance {
       }
       
       this.isDragging = true;
+      this.hasMovedDragging = false; // 드래그가 실제로 일어났는지 추적
       this.manager.bringToFront(this);
       this.element.classList.add('is-moving'); // iframe/text 이벤트 차단
 
@@ -272,6 +296,12 @@ class WindowInstance {
       document.addEventListener('touchmove', this.onMouseMoveObj, {passive: false});
       document.addEventListener('touchend', this.onMouseUpObj);
     };
+
+    // 타이틀바 더블클릭 시 최대화/복원 토글
+    titleBar.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      this.toggleMaximize();
+    });
 
     titleBar.addEventListener('mousedown', startDrag);
     titleBar.addEventListener('touchstart', startDrag, {passive: false});
@@ -292,7 +322,22 @@ class WindowInstance {
     // 리사이즈
     const handles = this.element.querySelectorAll('.resize-handle');
     const startResize = (e) => {
-      if (this.manager.isMobile) return;
+      if (this.manager.isMobile) return; 
+
+      if (this.isMaximized) {
+        // 최대화 상태에서 리사이즈 시도 시: 100vw/100vh 시각적 수치를 절대 픽셀로 변환하여 기본 상태(isMaximized 해제)로 복귀
+        this.x = 0;
+        this.y = 0;
+        this.width = window.innerWidth;
+        this.height = window.innerHeight;
+        
+        this.isMaximized = false;
+        this.element.classList.remove('is-maximized');
+        const maxBtn = this.element.querySelector('.maximize-btn');
+        if (maxBtn) maxBtn.textContent = '□'; 
+        
+        this.updateTransform();
+      }
       e.preventDefault();
       this.isResizing = true;
       this.resizeDir = e.target.className.replace('resize-handle ', '');
@@ -333,7 +378,25 @@ class WindowInstance {
     const dx = clientX - this.lastMouseX;
     const dy = clientY - this.lastMouseY;
 
+    // 이동량 없으면 무시 (단순 클릭 시 오차로 인한 강제 드래그 판정 방지)
+    if (dx === 0 && dy === 0) return;
+
     if (this.isDragging) {
+      // 처음으로 1px이라도 드래그가 감지된 경우 (최대화 상태라면 복원시킴)
+      if (this.isMaximized && !this.hasMovedDragging) {
+        this.toggleMaximize(); // 원래 크기로 돌아옴
+        
+        // 마우스 커서 아래에 창이 오도록 x 위치 보정
+        const halfW = this.width / 2;
+        this.x = Math.max(0, Math.min(window.innerWidth - this.width, clientX - halfW));
+        // y 좌표는 화면 최상단 유지
+        this.y = 0;
+        
+        // 즉시 강제 렌더링 업데이트하여 시각적으로 튀기 전에 맞춤
+        this.updateTransform();
+      }
+      this.hasMovedDragging = true;
+
       this.x += dx;
       this.y += dy;
     } else if (this.isResizing) {
@@ -394,6 +457,43 @@ class WindowInstance {
   dragResizeLoop() {
     this.updateTransform();
     this.rafId = null; // 다음 프레임을 위한 클리어
+  }
+
+  toggleMaximize() {
+    if (this.manager.isMobile) return; 
+    
+    this.manager.bringToFront(this);
+    const maxBtn = this.element.querySelector('.maximize-btn');
+    
+    if (!this.isMaximized) {
+      // 현재 상태 백업
+      this.preMaximizeState = {
+        x: this.x,
+        y: this.y,
+        width: this.width,
+        height: this.height,
+        centerRatioX: this.centerRatioX
+      };
+      
+      // 100vw, 100vh는 updateTransform 에서 전담하므로 x, y, width 데이터 건드리지 않음
+      this.isMaximized = true;
+      this.element.classList.add('is-maximized');
+      if (maxBtn) maxBtn.textContent = '❐'; // 복원(Restore) 아이콘으로 변경
+    } else {
+      // 원래 크기와 위치로 복구
+      if (this.preMaximizeState) {
+        this.x = this.preMaximizeState.x;
+        this.y = this.preMaximizeState.y;
+        this.width = this.preMaximizeState.width;
+        this.height = this.preMaximizeState.height;
+        this.centerRatioX = this.preMaximizeState.centerRatioX;
+      }
+      this.isMaximized = false;
+      this.element.classList.remove('is-maximized');
+      if (maxBtn) maxBtn.textContent = '□'; // 최대화(Maximize) 아이콘으로 되돌림
+    }
+    
+    this.updateTransform();
   }
 
   destroy() {
