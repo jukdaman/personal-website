@@ -6,11 +6,14 @@
 - **Architecture**: 순수 HTML/CSS/JS (Vanilla) 기반 프로젝트 셋업.
 - **Window System**: WindowManager 객체를 통한 OS 창(Window) UI 뼈대 구현.
   - 드래그 및 8방향 리사이징.
-  - `requestAnimationFrame`, `translate3d`, `will-change`를 활용한 60fps 최적화.
+  - `requestAnimationFrame`, `translate3d`, `will-change`를 활용한 60fps 최적화 및 리사이즈 병목 완화.
+  - 뷰포트 절대 비율(`centerRatioX`) 기반의 브라우저 리사이징 연동 (Drifting/밀림 버그 완벽 수정).
+  - 뷰포트 크기에 비례하는 동적 초기 창 크기 할당 (최대 최소 bounds 적용).
+  - 내부 콘텐츠 높이에 맞춰 유동적으로 늘어나는(`padding-bottom: 40px` hug) 문서 레이아웃 최적화.
+  - 텍스트 드래그(선택) 영역과 빈 배경 드래그(창 이동) 영역의 분리 처리.
   - 열려 있는 창 간의 z-index 포커싱 제어 및 오버랩(화면 밖 이탈) 방지 방어 코드.
   - X축 메뉴 위치 기반 다중 오픈 정렬 및 Y축 대각선 등장 로직.
   - 창 닫기 시 크기/위치 상태 기억 및 복원 (지나치게 작아진 경우 초기화 예외 처리 방어 포함).
-  - 타이틀바 외에 내부 여백(빈 화면) 드래그 이동 지원 (포인터 이벤트 충돌 방지).
 - **Mobile Responsive**: 767px 이하 레이아웃 시 데스크탑 창들을 화면에 꽉 차는 모바일 뷰 패널로 전환.
 - **Loading UI**: 초기 접속 시 오버레이 스피너 렌더링.
 
