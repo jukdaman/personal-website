@@ -6,8 +6,13 @@ class WindowManager {
     this.windowStates = new Map(); // id -> {x, y, width, height} 저장용
     this.desktopArea = document.getElementById('desktop-area');
     this.template = document.getElementById('window-template');
-    this.baseZIndex = 100;
-    this.activeZIndex = this.baseZIndex;
+    
+    // Z-index 레이어 분리: 1차 창은 100부터, 2차 창은 10000부터 시작
+    this.baseZIndexPrimary = 100;
+    this.activeZIndexPrimary = this.baseZIndexPrimary;
+    this.baseZIndexSecondary = 10000;
+    this.activeZIndexSecondary = this.baseZIndexSecondary;
+    
     this.isMobile = window.innerWidth <= 767;
 
     this.bindGlobalEvents();
@@ -77,18 +82,59 @@ class WindowManager {
   }
 
   bringToFront(winInstance) {
-    this.activeZIndex++;
-    winInstance.element.style.zIndex = this.activeZIndex;
+    if (winInstance.id.startsWith('window-primary-')) {
+      this.activeZIndexPrimary++;
+      winInstance.element.style.zIndex = this.activeZIndexPrimary;
+    } else {
+      this.activeZIndexSecondary++;
+      winInstance.element.style.zIndex = this.activeZIndexSecondary;
+    }
   }
 
-  // 창 생성 또는 기존 창 포커스
+  // 현재 같은 계층 내에서 가장 앞에 보이는(최소화되지 않은) 창인지 판별
+  isTopWindow(winInstance) {
+    let topZ = -1;
+    let topWin = null;
+    const isPrimaryTarget = winInstance.id.startsWith('window-primary-');
+
+    this.windows.forEach((w) => {
+      if (!w.isMinimized && w.element) {
+        const isWPrimary = w.id.startsWith('window-primary-');
+        // 1차 창은 1차 창끼리, 2차 창은 2차 창끼리 Z-index 상위에 있는지 비교
+        if (isWPrimary === isPrimaryTarget) {
+          const z = parseInt(w.element.style.zIndex) || 0;
+          if (z > topZ) {
+            topZ = z;
+            topWin = w;
+          }
+        }
+      }
+    });
+    return topWin === winInstance;
+  }
+
+  // 창 생성 또는 토글 (Nav 버튼용)
   openWindow(config) {
     const id = config.id || `win_${Date.now()}`;
     
-    // 이미 있는 창이면 닫기 (최소화 토글 역할)
     if (this.windows.has(id)) {
-      this.closeWindow(id);
-      return null;
+      const win = this.windows.get(id);
+      
+      // 최소화 상태 → 복원
+      if (win.isMinimized) {
+        this.restoreWindow(id);
+        return win;
+      }
+      
+      // 이미 맨 앞에 있는 창 → 최소화
+      if (this.isTopWindow(win)) {
+        this.minimizeWindow(id);
+        return null;
+      }
+      
+      // 뒤에 있는 창 → 앞으로 가져오기
+      this.bringToFront(win);
+      return win;
     }
 
     // 새 창 생성
@@ -96,37 +142,56 @@ class WindowManager {
     this.windows.set(id, win);
     this.desktopArea.appendChild(win.element);
     this.bringToFront(win);
+    this.updateNavState(id, true);
     return win;
   }
 
+  // 최소화: DOM 유지, visibility로 숨김 (모든 상태 보존)
+  minimizeWindow(id) {
+    const win = this.windows.get(id);
+    if (!win) return;
+    win.isMinimized = true;
+    win.element.style.visibility = 'hidden';
+    win.element.style.pointerEvents = 'none';
+    this.updateNavState(id, false);
+  }
+
+  // 복원: 최소화 해제 (isMaximized 등 기존 상태 그대로 유지)
+  restoreWindow(id) {
+    const win = this.windows.get(id);
+    if (!win) return;
+    win.isMinimized = false;
+    win.element.style.visibility = '';
+    win.element.style.pointerEvents = '';
+    this.bringToFront(win);
+    this.updateNavState(id, true);
+  }
+
+  // 진짜 닫기 (X 버튼 / 타이틀 더블클릭): DOM 파괴, 저장 상태 초기화
   closeWindow(id) {
     if (this.windows.has(id)) {
       const win = this.windows.get(id);
       
-      // 닫기 직전의 창 상태 기억 
-      // 만약 닫힐 때 최대화 상태라면, 화면에 꽉 찬 상태가 아니라 최대화 이전(원래) 상태를 기록
-      let savedState;
-      if (win.isMaximized && win.preMaximizeState) {
-        savedState = {
-          x: win.preMaximizeState.x,
-          y: win.preMaximizeState.y,
-          width: win.preMaximizeState.width,
-          height: win.preMaximizeState.height,
-          centerRatioX: win.preMaximizeState.centerRatioX
-        };
-      } else {
-        savedState = {
-          x: win.x,
-          y: win.y,
-          width: win.width,
-          height: win.height,
-          centerRatioX: win.centerRatioX
-        };
-      }
-      this.windowStates.set(id, savedState);
+      // 저장된 상태 삭제 → 다시 열리면 기본 스폰 위치/크기로 초기화
+      this.windowStates.delete(id);
 
       win.destroy();
       this.windows.delete(id);
+      this.updateNavState(id, false);
+      
+      // 창이 완전히 종료되었음을 알리는 커스텀 이벤트 발생 (아이템 active 해제용)
+      window.dispatchEvent(new CustomEvent('windowClosed', { detail: { id } }));
+    }
+  }
+
+  // Nav 버튼의 활성 상태를 창 열림/닫힘에 동기화
+  // id 규칙: "window-primary-about" → data-target="about"
+  updateNavState(id, isVisible) {
+    const match = id.match(/^window-primary-(.+)$/);
+    if (!match) return; // 2차 창 등은 nav 버튼이 없으므로 무시
+    const navBtn = document.querySelector(`.nav-btn[data-target="${match[1]}"]`);
+    if (navBtn) {
+      navBtn.classList.toggle('is-active', isVisible);
     }
   }
 }
@@ -190,6 +255,7 @@ class WindowInstance {
     // Interaction State
     this.isDragging = false;
     this.isResizing = false;
+    this.isMinimized = false;
     this.resizeDir = '';
     
     this.lastMouseX = 0;
@@ -264,6 +330,12 @@ class WindowInstance {
 
     const contentArea = this.element.querySelector('.window-content-area');
 
+    // 바인딩을 위한 화살표 함수 참조 보관 (이벤트 해제를 위함)
+    // startDrag 이전에 선언하여 addEventListener 시점에 참조가 유효하도록 보장
+    this.onMouseMoveObj = this.onMouseMove.bind(this);
+    this.onMouseUpObj = this.onMouseUp.bind(this);
+    this.dragResizeLoopObj = this.dragResizeLoop.bind(this);
+
     // 드래그 (Titlebar 및 빈 화면)
     const startDrag = (e) => {
       // 모바일 모드면 드래그/리사이즈 불허
@@ -276,14 +348,15 @@ class WindowInstance {
       // 모바일 기기이거나 터치 이벤트일 경우 빈 영역 드래그로 인해 스크롤이 죽는 현상 방지
       if (e.type === 'touchstart' && e.currentTarget === contentArea) return; 
 
-      if (e.currentTarget === titleBar) {
-        e.preventDefault();
-      }
+      // 타이틀바 mousedown 시 즉시 preventDefault()를 하지 않음
+      // → 네이티브 dblclick 이벤트가 정상 발화되도록 허용
+      // → 실제 드래그(mousemove)가 감지되면 그때 preventDefault 처리
       
       this.isDragging = true;
       this.hasMovedDragging = false; // 드래그가 실제로 일어났는지 추적
+      this._dragSourceIsTitleBar = (e.currentTarget === titleBar);
+      // is-moving 클래스는 실제 움직임이 감지된 이후에 추가 (onMouseMove에서 처리)
       this.manager.bringToFront(this);
-      this.element.classList.add('is-moving'); // iframe/text 이벤트 차단
 
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -297,7 +370,14 @@ class WindowInstance {
       document.addEventListener('touchend', this.onMouseUpObj);
     };
 
-    // 타이틀바 더블클릭 시 최대화/복원 토글
+    // 타이틀 텍스트(좌측) 더블클릭 → 창 닫기 (Windows 스타일)
+    const titleText = this.element.querySelector('.window-title');
+    titleText.addEventListener('dblclick', (e) => {
+      e.stopPropagation(); // 타이틀바의 maximize 토글로 전파 차단
+      this.manager.closeWindow(this.id);
+    });
+
+    // 타이틀바 나머지 영역 더블클릭 → 최대화/복원 토글
     titleBar.addEventListener('dblclick', (e) => {
       e.stopPropagation();
       this.toggleMaximize();
@@ -334,7 +414,7 @@ class WindowInstance {
         this.isMaximized = false;
         this.element.classList.remove('is-maximized');
         const maxBtn = this.element.querySelector('.maximize-btn');
-        if (maxBtn) maxBtn.textContent = '□'; 
+        if (maxBtn) maxBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"/></svg>'; 
         
         this.updateTransform();
       }
@@ -360,11 +440,6 @@ class WindowInstance {
       h.addEventListener('mousedown', startResize);
       h.addEventListener('touchstart', startResize, {passive: false});
     });
-
-    // 바인딩을 위한 화살표 함수 참조 보관 (이벤트 해제를 위함)
-    this.onMouseMoveObj = this.onMouseMove.bind(this);
-    this.onMouseUpObj = this.onMouseUp.bind(this);
-    this.dragResizeLoopObj = this.dragResizeLoop.bind(this);
   }
 
   onMouseMove(e) {
@@ -382,6 +457,11 @@ class WindowInstance {
     if (dx === 0 && dy === 0) return;
 
     if (this.isDragging) {
+      // 최초로 실제 움직임이 감지된 순간: is-moving 클래스 부여 및 텍스트 선택 차단
+      if (!this.hasMovedDragging) {
+        this.element.classList.add('is-moving');
+      }
+
       // 처음으로 1px이라도 드래그가 감지된 경우 (최대화 상태라면 복원시킴)
       if (this.isMaximized && !this.hasMovedDragging) {
         this.toggleMaximize(); // 원래 크기로 돌아옴
@@ -478,7 +558,7 @@ class WindowInstance {
       // 100vw, 100vh는 updateTransform 에서 전담하므로 x, y, width 데이터 건드리지 않음
       this.isMaximized = true;
       this.element.classList.add('is-maximized');
-      if (maxBtn) maxBtn.textContent = '❐'; // 복원(Restore) 아이콘으로 변경
+      if (maxBtn) maxBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10"><rect x="2.5" y="0.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1"/><rect x="0.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1"/></svg>'; // 복원(Restore) 아이콘으로 변경
     } else {
       // 원래 크기와 위치로 복구
       if (this.preMaximizeState) {
@@ -490,7 +570,7 @@ class WindowInstance {
       }
       this.isMaximized = false;
       this.element.classList.remove('is-maximized');
-      if (maxBtn) maxBtn.textContent = '□'; // 최대화(Maximize) 아이콘으로 되돌림
+      if (maxBtn) maxBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"/></svg>'; // 최대화(Maximize) 아이콘으로 되돌림
     }
     
     this.updateTransform();

@@ -49,6 +49,7 @@
   font-weight: 500;
   letter-spacing: 0.5px;
   text-transform: uppercase;
+  cursor: default; /* 타이틀바(grab)와 구분: 더블클릭 시 닫기 영역임을 암시 */
   /* 제목이 길 때 생략 */
   white-space: nowrap;
   overflow: hidden;
@@ -58,19 +59,23 @@
 
 .window-controls {
   display: flex;
-  gap: 12px;
+  gap: 4px;
 }
 
 .win-btn {
   background: none;
   border: none;
   color: #fff;
-  font-size: 14px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   line-height: 1;
   opacity: 0.7;
   transition: opacity 0.2s;
-  font-family: sans-serif; /* 기호가 명확히 보이도록 */
+  padding: 0;
 }
 
 .win-btn:hover {
@@ -87,6 +92,10 @@
   /* 부드러운 스크롤 */
   -webkit-overflow-scrolling: touch; 
   padding: 20px; /* 가장자리의 드래그 전용 빈 공간 */
+  
+  /* 반응형 컨테이너 쿼리 기준 설정 (창의 실제 너비에 반응) */
+  container-type: inline-size;
+  container-name: window-panel;
 }
 
 /* 실제 텍스트 및 콘텐츠가 담기는 문서 영역 (선택 가능, hug) */

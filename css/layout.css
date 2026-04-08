@@ -28,11 +28,17 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-#background-container, #background-canvas {
+#background-container,
+#background-canvas {
   position: absolute;
   top: 0;
   left: 0;
@@ -49,8 +55,10 @@
   width: 100vw;
   height: 100%;
   z-index: var(--z-desktop);
-  overflow: hidden; /* 창 이탈 방지 + 모바일 스크롤 처리를 JS에서 제어 */
-  pointer-events: none; /* 창 컴포넌트에만 이벤트를 허용하기 위함 */
+  overflow: hidden;
+  /* 창 이탈 방지 + 모바일 스크롤 처리를 JS에서 제어 */
+  pointer-events: none;
+  /* 창 컴포넌트에만 이벤트를 허용하기 위함 */
 }
 
 /* 하단 네비게이션: 시안과 동일한 4개의 메뉴, 그라데이션 흰 바탕 */
@@ -65,8 +73,9 @@
   align-items: center;
   gap: 60px;
   z-index: var(--z-nav);
-  pointer-events: auto; /* 네비는 클릭 가능해야 함 */
-  background: linear-gradient(to top, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 100%);
+  pointer-events: auto;
+  /* 네비는 클릭 가능해야 함 */
+  background: linear-gradient(to top, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 100%);
 }
 
 .nav-btn {
@@ -80,15 +89,44 @@
   text-transform: uppercase;
   letter-spacing: 1px;
   padding: 10px 20px;
-  transition: opacity 0.2s ease, transform 0.1s;
+  position: relative;
+  /* ::after 아이콘 배치를 위해 추가 */
 }
 
 .nav-btn:hover {
   opacity: 0.6;
+  transition: opacity 0.2s;
 }
 
 .nav-btn:active {
   transform: scale(0.95);
+}
+
+.nav-btn.is-active {
+  opacity: 0.4;
+}
+
+.nav-btn.is-active:hover {
+  opacity: 1;
+}
+
+.nav-btn.will-close {
+  color: transparent;
+  /* 원본 텍스트를 숨겨서 X 아이콘이 들어갈 공간만 남김 (버튼 크기 고정) */
+}
+
+.nav-btn.will-close::after {
+  content: "✕";
+  color: #000;
+  /* 원본 텍스트는 투명하지만 실제 X 아이콘은 검은색으로 */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  /* 정확히 정중앙으로 배치 */
+  letter-spacing: 0;
+  font-size: 16px;
+  /* X 크기를 살짝 더 크게 대비되도록 */
 }
 
 /* 모바일 뷰 (<767px) - Window 컴포넌트가 패널/풀스크린으로 변할 때의 베이스 컨테이너 대응 */
@@ -97,14 +135,15 @@
     gap: 20px;
     height: var(--nav-height-mobile);
   }
+
   .nav-btn {
     font-size: 12px;
     padding: 8px 10px;
   }
-  
+
   #desktop-area {
     height: 100%;
     /* 모바일에서는 패널이 스택처럼 쌓일 수 있으므로 포인터 이벤트 복구 */
-    pointer-events: auto; 
+    pointer-events: auto;
   }
 }
