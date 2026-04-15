@@ -27,32 +27,107 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- 2. 하단 네비게이션 제어 ---
   const navBtns = document.querySelectorAll('.nav-btn');
   
-  // will-close 표시 갱신: hover 중이고 is-active이며 맨 앞 창인 경우에만 ✕ 표시
+  // Nav 버튼의 호버 및 CSS 애니메이션 지연시간 정의 (논리적 유예시간 계산용)
+  const HOVER_DELAY = 700;
+  const ANIM_DELAY = 300;
+
+  // will-close 표시 갱신: 모든 상황에서 0.7초 호버 시 시각적 효과 표시, 애니메이션 완료 후 논리적 닫기 허용
   function updateNavCloseIndicator(btn) {
     if (!btn.matches(':hover') || !btn.classList.contains('is-active')) {
-      btn.classList.remove('will-close');
+      resetNavCloseState(btn); // 창 인자는 나중에 구하므로 일단 btn만
       return;
     }
+    
     const pageId = btn.getAttribute('data-target');
     const winId = `window-primary-${pageId}`;
     const win = window.windowManager.windows.get(winId);
+
     if (win && !win.isMinimized && window.windowManager.isTopWindow(win)) {
-      btn.classList.add('will-close');
+      if (btn.dataset.hovering === "true") return; // 이미 카운트다운 진행 중이면 무시
+      btn.dataset.hovering = "true";
+
+      btn.hoverTimeout = setTimeout(() => {
+        if (!btn.matches(':hover')) return; // 호버가 풀렸다면 취소
+        
+        // 시각적 미리보기 등장
+        btn.classList.add('will-close');
+        win.element.classList.add('is-closing-preview');
+
+        // CSS 등장 애니메이션이 완전히 끝난 시점에 논리적 닫기 권한 부여
+        btn.animTimeout = setTimeout(() => {
+          if (btn.matches(':hover')) {
+            btn.dataset.canClose = "true";
+          }
+        }, ANIM_DELAY);
+
+      }, HOVER_DELAY);
+
     } else {
-      btn.classList.remove('will-close');
+      resetNavCloseState(btn, win);
     }
   }
 
+  function resetNavCloseState(btn, win) {
+    clearTimeout(btn.hoverTimeout);
+    clearTimeout(btn.animTimeout);
+    btn.dataset.hovering = "false";
+    btn.dataset.canClose = "false";
+    btn.classList.remove('will-close');
+    if (win && win.element) win.element.classList.remove('is-closing-preview');
+  }
+
   navBtns.forEach((btn, index) => {
+    btn.dataset.canClose = "false";
+    
     btn.addEventListener('click', () => {
       const pageId = btn.getAttribute('data-target');
+      const winId = `window-primary-${pageId}`;
+      const win = window.windowManager.windows.get(winId);
+      
+      // 대상이 맨 앞에 있는 창일 때, 아직 시각적 애니메이션이 완성되지 않았다면 클릭(최소화) 무시
+      if (win && !win.isMinimized && window.windowManager.isTopWindow(win)) {
+        if (btn.dataset.canClose !== "true") {
+          // 현재 창 위에 1px이라도 겹치는 창이 있는지 확인 (완벽한 독립 단독 화면 상태인가?)
+          const isUnobscured = window.windowManager.isFullyUnobscured(win);
+
+          // 비록 닫지는 않지만, 선택(클릭)했으므로 z-index는 맨 위(최상단)로 확실하게 끌어올려줌
+          window.windowManager.bringToFront(win);
+          
+          // 조금이라도 가려진 상태에서 조작(클릭)했다면, 이 클릭의 1차적인 의도는 "포커스(Z-index 갱신)"임.
+          // 따라서 패스트포워드를 발동하지 않고, 포커스된 시점을 기준으로 유예시간(700ms)이 처음부터 다시 주어지도록 타이머를 리셋함.
+          if (!isUnobscured) {
+            resetNavCloseState(btn, win);
+            updateNavCloseIndicator(btn);
+            return;
+          }
+
+          // --- 패스트포워드(즉시 종료 대기 상태 전환) 로직 ---
+          // 이미 완벽한 최상단(Focus) 상태인데 유예 시간을 기다리지 않고 또 클릭했다면 명확한 닫기 의도로 간주함
+          // 타이머를 파기하고 즉시 '닫기 UI'와 '닫기 권한'을 강제 부여함
+          clearTimeout(btn.hoverTimeout);
+          clearTimeout(btn.animTimeout);
+          btn.classList.add('will-close');
+          win.element.classList.add('is-closing-preview');
+          btn.dataset.canClose = "true";
+          
+          return;
+        }
+      }
+
       openPrimaryWindow(pageId, index, navBtns.length);
       // 클릭 후 상태가 바뀌었으므로 즉시 재평가
+      resetNavCloseState(btn, win);
       updateNavCloseIndicator(btn);
     });
 
     btn.addEventListener('mouseenter', () => updateNavCloseIndicator(btn));
-    btn.addEventListener('mouseleave', () => btn.classList.remove('will-close'));
+    
+    btn.addEventListener('mouseleave', () => {
+      const pageId = btn.getAttribute('data-target');
+      const winId = `window-primary-${pageId}`;
+      const win = window.windowManager.windows.get(winId);
+      resetNavCloseState(btn, win);
+    });
   });
 
   async function openPrimaryWindow(pageId, index, totalBtnCount) {
@@ -87,7 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // 글로벌 접근 가능하도록 헬퍼 등록 (HTML 내 인라인 이벤트용)
-  window.openSecondaryWindow = function(id, title, contentHTML) {
+  window.openSecondaryWindow = function(id, title, contentHTML, parentId) {
     const initWidth = Math.max(300, Math.min(450, window.innerWidth * 0.25));
     const initHeight = Math.max(300, Math.min(500, window.innerHeight * 0.5));
 
@@ -96,8 +171,40 @@ document.addEventListener('DOMContentLoaded', () => {
       title: title,
       contentHTML: contentHTML,
       width: initWidth,
-      height: initHeight
+      height: initHeight,
+      parentId: parentId
     });
+  };
+
+  // 이미지 로드 시 캔버스(Canvas) 기반 평균 색상 추출 및 그림자 색상 적용 (is-loaded 제어 병행)
+  window.applyAmbientShadow = function(imgElement) {
+    const parent = imgElement.parentElement;
+    if (!parent) return;
+    
+    // 1. 로드 완료 상태로 변경 (1/1 스켈레톤 비율 해제)
+    parent.classList.add('is-loaded');
+
+    // 2. 이미 추출 연산을 진행했다면 스킵
+    if (parent.dataset.colorExtracted) return;
+    parent.dataset.colorExtracted = "true";
+
+    // 3. HTML5 Canvas를 이용한 1x1 초고속 픽셀 평균 색상 추출 기법
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      
+      // 이미지를 1x1 픽셀로 극단적으로 압축 렌더링하면 브라우저가 자동으로 전체 이미지의 평균색을 혼합해 완성함
+      ctx.drawImage(imgElement, 0, 0, 1, 1);
+      const pixelData = ctx.getImageData(0, 0, 1, 1).data;
+      const [r, g, b] = pixelData;
+
+      // 부모 컨테이너 CSS 커스텀 변수(--shadow-color)에 투명도 0.5가 가미된 추출 RGB 주입
+      parent.style.setProperty('--shadow-color', `rgba(${r}, ${g}, ${b}, 0.5)`);
+    } catch (error) {
+      console.warn("Canvas color extraction failed. Falling back to default shadow.", error);
+    }
   };
 
   // 갤러리 아이템 클릭 시 토글 (종료/열기) 및 active 상태 관리
@@ -109,8 +216,8 @@ document.addEventListener('DOMContentLoaded', () => {
       window.windowManager.closeWindow(winId);
       // is-active 해제는 아래 windowClosed 이벤트 리스너가 수행함
     } else {
-      // 없다면 열기
-      window.openSecondaryWindow(id, title, contentHTML);
+      // 없다면 열기 (WORK 창에서 열리는 것이므로 부모 명시)
+      window.openSecondaryWindow(id, title, contentHTML, 'window-primary-work');
       btnElement.classList.add('is-active');
       btnElement.setAttribute('data-win-id', winId); // 이벤트 리스너에서 쉽게 찾기 위해 ID 보관
     }

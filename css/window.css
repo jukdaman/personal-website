@@ -16,7 +16,52 @@
   outline: none;
   
   /* will-change 적용으로 브라우저 렌더링(GPU) 최적화 */
-  will-change: transform, width, height;
+  will-change: transform, width, height, opacity;
+  transition: opacity 0.3s ease;
+}
+
+/* Nav 호버 시 창 닫기 미리보기 (본체 대신 ::before 딤 처리 사용) */
+.os-window::before {
+  content: "✕";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 160px;
+  font-weight: 300;
+  color: white; /* 어두운 배경 대비 흰색 X */
+  opacity: 0;
+  z-index: 105;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.os-window.is-closing-preview::before {
+  opacity: 1;
+}
+
+/* 겹처서 가려진(Top이 아닌) 창을 위한 딤 처리 */
+.os-window::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+  z-index: 100;
+}
+
+.os-window.is-dimmed::after {
+  opacity: 0.05;
 }
 
 /* 드래그 및 리사이즈 도중에는 내부 iframe, 이미지 등에 이벤트 뺏기지 않도록 차단 */

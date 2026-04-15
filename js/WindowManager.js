@@ -7,11 +7,8 @@ class WindowManager {
     this.desktopArea = document.getElementById('desktop-area');
     this.template = document.getElementById('window-template');
     
-    // Z-index 레이어 분리: 1차 창은 100부터, 2차 창은 10000부터 시작
-    this.baseZIndexPrimary = 100;
-    this.activeZIndexPrimary = this.baseZIndexPrimary;
-    this.baseZIndexSecondary = 10000;
-    this.activeZIndexSecondary = this.baseZIndexSecondary;
+    // Z-index 통합: 모든 창이 동일한 계층을 공유 (클릭 시 최상단으로 올라오게 됨)
+    this.activeZIndex = 100;
     
     this.isMobile = window.innerWidth <= 767;
 
@@ -82,35 +79,191 @@ class WindowManager {
   }
 
   bringToFront(winInstance) {
+    // 1. 클릭된 대상을 전체 창 중 제일 위쪽으로 가져옴
+    this.activeZIndex++;
+    winInstance.element.style.zIndex = this.activeZIndex;
+
+    // 2. 만약 방금 맨 위로 올린 대상이 1차 창이라면?
+    // 자신이 낳은 2차 창(자식들)이 자신보다 밑에 깔리면 안 되므로 즉시 바로 위로 함께 끌어올림
+    // 단, 2차 창이 최대화(isMaximized) 상태라면 배경 캔버스로 취급하여 위로 올리지 않음
     if (winInstance.id.startsWith('window-primary-')) {
-      this.activeZIndexPrimary++;
-      winInstance.element.style.zIndex = this.activeZIndexPrimary;
-    } else {
-      this.activeZIndexSecondary++;
-      winInstance.element.style.zIndex = this.activeZIndexSecondary;
+      this.windows.forEach(childWin => {
+        if (!childWin.isMinimized && childWin.config.parentId === winInstance.id && !childWin.isMaximized) {
+          this.activeZIndex++;
+          childWin.element.style.zIndex = this.activeZIndex;
+        }
+      });
     }
+
+    this.updateDimStates();
   }
 
-  // 현재 같은 계층 내에서 가장 앞에 보이는(최소화되지 않은) 창인지 판별
+  // 현재 전체 계층에서 시각적으로 가려짐이 없는 창(온전히 보이는 창)인지 판별
   isTopWindow(winInstance) {
-    let topZ = -1;
-    let topWin = null;
-    const isPrimaryTarget = winInstance.id.startsWith('window-primary-');
+    if (winInstance.isMinimized || !winInstance.element) return false;
+
+    const targetZ = parseInt(winInstance.element.style.zIndex) || 0;
+    const targetRect = winInstance.element.getBoundingClientRect();
+
+    let isObscured = false;
 
     this.windows.forEach((w) => {
-      if (!w.isMinimized && w.element) {
-        const isWPrimary = w.id.startsWith('window-primary-');
-        // 1차 창은 1차 창끼리, 2차 창은 2차 창끼리 Z-index 상위에 있는지 비교
-        if (isWPrimary === isPrimaryTarget) {
-          const z = parseInt(w.element.style.zIndex) || 0;
-          if (z > topZ) {
-            topZ = z;
-            topWin = w;
-          }
+      // 본인이거나 최소화된 창은 비교 제외
+      if (w === winInstance || w.isMinimized || !w.element) return;
+
+      const wZ = parseInt(w.element.style.zIndex) || 0;
+
+      // 대상 창보다 z-index가 높은 창(1차, 2차 무관)이 있는 경우에만 겹침 확인
+      if (wZ > targetZ) {
+        // 부모 창이 "최대화(Maximized) 상태"일 때 한정하여, 자식 창(2차 창)이 부모를 가리는 것을 무시함
+        // (작은 부모 창일 때는 자식 팝업이 뜨면 부모가 정상적으로 Dim 처리되어야 하지만 전체 화면일 땐 예외처리하기 위함)
+        if (w.config.parentId === winInstance.id && winInstance.isMaximized) {
+          return;
+        }
+
+        const wRect = w.element.getBoundingClientRect();
+
+        // 가로/세로가 각각 얼마나 겹쳤는지 실제 px 면적을 계산
+        const overlapX = Math.max(0, Math.min(targetRect.right, wRect.right) - Math.max(targetRect.left, wRect.left));
+        const overlapY = Math.max(0, Math.min(targetRect.bottom, wRect.bottom) - Math.max(targetRect.top, wRect.top));
+
+        // 가로 세로 모두 40px을 초과해서 겹쳐야만 비로소 '가려졌다(Obscured)'고 판정 (여유폭 40px 허용)
+        if (overlapX > 40 && overlapY > 40) {
+          isObscured = true;
         }
       }
     });
-    return topWin === winInstance;
+
+    // 나를 가리는(위에서 겹쳐있는) 창이 하나도 없다면 Top으로 간주
+    return !isObscured;
+  }
+
+  // 대상 창 위에 다른 창이 단 1px이라도 겹쳐 있는지 확인 (완벽한 독립 상태)
+  isFullyUnobscured(winInstance) {
+    if (winInstance.isMinimized || !winInstance.element) return false;
+    
+    const targetRect = winInstance.element.getBoundingClientRect();
+    const targetZ = parseInt(winInstance.element.style.zIndex || 0, 10);
+    
+    let fullyClear = true;
+    
+    this.windows.forEach(w => {
+      if (!fullyClear || w === winInstance || w.isMinimized || !w.element) return;
+      
+      const wZ = parseInt(w.element.style.zIndex || 0, 10);
+      
+      if (wZ > targetZ) {
+        // 부모 창이 최대화 상태일 때 자식창은 가림 판정에서 제외
+        if (w.config.parentId === winInstance.id && winInstance.isMaximized) {
+          return;
+        }
+
+        const wRect = w.element.getBoundingClientRect();
+        
+        const overlapX = Math.max(0, Math.min(targetRect.right, wRect.right) - Math.max(targetRect.left, wRect.left));
+        const overlapY = Math.max(0, Math.min(targetRect.bottom, wRect.bottom) - Math.max(targetRect.top, wRect.top));
+        
+        // 1px이라도 겹치면 가려진 것으로 취급
+        if (overlapX > 0 && overlapY > 0) {
+          fullyClear = false;
+        }
+      }
+    });
+    
+    return fullyClear;
+  }
+
+  // 모든 창을 순회하며 Top이 아닌 창에 is-dimmed 클래스를 부여
+  updateDimStates() {
+    this.windows.forEach(win => {
+      if (win.isMinimized || !win.element) return;
+      if (this.isTopWindow(win)) {
+        win.element.classList.remove('is-dimmed');
+      } else {
+        win.element.classList.add('is-dimmed');
+      }
+    });
+  }
+
+  // --- 스마트 배치 로직 (AABB 기반 최적 빈공간 탐색) ---
+  calculateOverlapArea(rect1, rectList) {
+    let totalOverlap = 0;
+    for (const rect2 of rectList) {
+      const overlapX = Math.max(0, Math.min(rect1.right, rect2.right) - Math.max(rect1.left, rect2.left));
+      const overlapY = Math.max(0, Math.min(rect1.bottom, rect2.bottom) - Math.max(rect1.top, rect2.top));
+      if (overlapX > 0 && overlapY > 0) {
+        totalOverlap += (overlapX * overlapY);
+      }
+    }
+    return totalOverlap;
+  }
+
+  findSmartPosition(winInstance) {
+    const newW = winInstance.width;
+    const newH = winInstance.height;
+
+    const cw = window.innerWidth;
+    const ch = window.innerHeight;
+
+    // 화면 밖으로 나가지 않는 유효한 시작/종료 좌표 범위
+    const maxX = Math.max(0, cw - newW);
+    const maxY = Math.max(0, ch - newH - 32); // 타이틀바 높이 등 고려
+
+    // 중앙 스폰 기준점 (중앙을 최우선으로 하기 위함)
+    const cx = maxX / 2;
+    const cy = Math.max(0, (ch - newH) / 2);
+
+    // 현재 화면에 배치된 창들의 Rect 수집
+    const existingRects = [];
+    this.windows.forEach(win => {
+      if (win.isMinimized || !win.element || !win.element.isConnected) return;
+      if (win.id === winInstance.id) return; // 본인 제외
+
+      const isPrimary = win.id.startsWith('window-primary-');
+
+      // 사용자 요구사항: 부모가 아닌 1차 창 컴포넌트의 위치는 의식 안 했으면 좋겠어
+      if (isPrimary && win.id !== winInstance.config.parentId) {
+        return;
+      }
+
+      existingRects.push(win.element.getBoundingClientRect());
+    });
+
+    if (existingRects.length === 0) {
+      return { x: cx, y: cy };
+    }
+
+    const step = 40; // 40px 단위 그리드 탐색 
+    let bestPos = { x: cx, y: cy };
+    let bestScore = Infinity;
+
+    for (let y = 0; y <= maxY; y += step) {
+      for (let x = 0; x <= maxX; x += step) {
+        const testRect = {
+          left: x,
+          top: y,
+          right: x + newW,
+          bottom: y + newH
+        };
+
+        const penalty = this.calculateOverlapArea(testRect, existingRects);
+
+        // 중앙과의 거리 보정 (중앙을 최우선으로 배치하기 위함)
+        const dx = x - cx;
+        const dy = y - cy;
+        const distToCenter = Math.sqrt(dx * dx + dy * dy);
+
+        // 점수: 겹침이 적은 것이 압도적으로 중요(x10000), 그다음 중앙에 가까운 것이 중요
+        const score = penalty * 10000 + distToCenter;
+
+        if (score < bestScore) {
+          bestScore = score;
+          bestPos = { x, y };
+        }
+      }
+    }
+
+    return bestPos;
   }
 
   // 창 생성 또는 토글 (Nav 버튼용)
@@ -146,25 +299,68 @@ class WindowManager {
     return win;
   }
 
-  // 최소화: DOM 유지, visibility로 숨김 (모든 상태 보존)
+  // 최소화: DOM 유지, visibility로 숨김 (모든 상태 보존하지만 사용자 옵션 1을 위해 상태 삭제)
   minimizeWindow(id) {
-    const win = this.windows.get(id);
-    if (!win) return;
-    win.isMinimized = true;
-    win.element.style.visibility = 'hidden';
-    win.element.style.pointerEvents = 'none';
-    this.updateNavState(id, false);
+    if (this.windows.has(id)) {
+      const win = this.windows.get(id);
+      
+      // 사용자 UX 최적화: Nav 버튼이 '종료'처럼 작동하길 원하므로 
+      // 이전 위치를 기억하는 상태 백업을 파기(건너뜀)하여 항상 초기 상태로 리셋되게 함.
+      this.windowStates.delete(id);
+      
+      win.isMinimized = true;
+      win.element.style.visibility = 'hidden';
+      win.element.style.pointerEvents = 'none';
+      this.updateNavState(id, false);
+      this.updateDimStates();
+    }
   }
 
-  // 복원: 최소화 해제 (isMaximized 등 기존 상태 그대로 유지)
+  // 복원: 최소화 해제 (isMaximized 등 기존 상태 그대로 유지하되 위치는 초기화 - 사용자 옵션 1)
   restoreWindow(id) {
-    const win = this.windows.get(id);
-    if (!win) return;
-    win.isMinimized = false;
-    win.element.style.visibility = '';
-    win.element.style.pointerEvents = '';
-    this.bringToFront(win);
-    this.updateNavState(id, true);
+    if (this.windows.has(id)) {
+      const win = this.windows.get(id);
+      win.isMinimized = false;
+      win.element.style.visibility = '';
+      win.element.style.pointerEvents = '';
+      
+      // UI상 Nav 버튼이 '종료'처럼 보이므로(✕ 아이콘), 다시 열었을 때 새 창처럼 위치/크기 초기화
+      const cw = window.innerWidth;
+      const ch = window.innerHeight;
+      
+      if (win.isMaximized) {
+        win.toggleMaximize(); // 최대화 상태였다면 해제
+      }
+      
+      win.width = win.config.width;
+      win.height = win.config.height;
+
+      // y는 중앙 우선
+      win.y = Math.max(0, (ch - win.height) / 2);
+
+      // x는 Primary 창 여부에 따라 나란히 분할
+      if (win.config.alignTotal && win.config.alignTotal > 1) {
+        const horizontalMargin = cw * 0.05;
+        const maxScrollX = cw - (horizontalMargin * 2) - win.width;
+        const ratio = win.config.alignIndex / (win.config.alignTotal - 1);
+        
+        win.x = Math.max(0, horizontalMargin + maxScrollX * ratio);
+        
+        const midIndex = (win.config.alignTotal - 1) / 2;
+        win.y += (win.config.alignIndex - midIndex) * 20;
+      } else {
+        const pos = this.findSmartPosition(win);
+        win.x = pos.x;
+        win.y = pos.y;
+      }
+      
+      win.centerRatioX = (win.x + win.width / 2) / cw;
+      win.updateTransform();
+
+      this.bringToFront(win);
+      this.updateNavState(id, true);
+      this.updateDimStates();
+    }
   }
 
   // 진짜 닫기 (X 버튼 / 타이틀 더블클릭): DOM 파괴, 저장 상태 초기화
@@ -178,7 +374,8 @@ class WindowManager {
       win.destroy();
       this.windows.delete(id);
       this.updateNavState(id, false);
-      
+      this.updateDimStates();
+
       // 창이 완전히 종료되었음을 알리는 커스텀 이벤트 발생 (아이템 active 해제용)
       window.dispatchEvent(new CustomEvent('windowClosed', { detail: { id } }));
     }
@@ -245,10 +442,10 @@ class WindowInstance {
         const midIndex = (this.config.alignTotal - 1) / 2;
         this.y += (this.config.alignIndex - midIndex) * 20; 
       } else {
-        // 메뉴 버튼에 연결되지 않은 2차 창 등은 여전히 중앙 기반에 오프셋
-        const offset = (this.manager.windows.size * 20) % 100;
-        this.x = Math.max(0, (cw - this.width) / 2 + offset);
-        this.y += offset; 
+        // 스마트 배치를 이용해 빈 공간 탐색 및 스폰 (2차 창 등)
+        const pos = this.manager.findSmartPosition(this);
+        this.x = pos.x;
+        this.y = pos.y;
       }
     }
 
@@ -536,6 +733,7 @@ class WindowInstance {
 
   dragResizeLoop() {
     this.updateTransform();
+    this.manager.updateDimStates();
     this.rafId = null; // 다음 프레임을 위한 클리어
   }
 
@@ -572,8 +770,8 @@ class WindowInstance {
       this.element.classList.remove('is-maximized');
       if (maxBtn) maxBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"/></svg>'; // 최대화(Maximize) 아이콘으로 되돌림
     }
-    
     this.updateTransform();
+    this.manager.updateDimStates();
   }
 
   destroy() {

@@ -76,7 +76,7 @@
 
 .masonry-item {
   break-inside: avoid;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
   width: 100%;
   border-radius: 12px;
   overflow: hidden;
@@ -84,11 +84,15 @@
   /* 로딩 전 스켈레톤 컬러 */
   position: relative;
   cursor: pointer;
-  transition: box-shadow 0.05s ease;
+  /* Hover 해제 시(Mouse Leave) 즉시 그림자가 사라지도록 트랜지션 제거 (0s) */
+  transition: box-shadow 0s ease-out;
 }
 
 .masonry-item:hover {
-  box-shadow: 0 0 0.8em rgba(0, 0, 0, 0.2);
+  /* JS가 캔버스 1x1로 추출한 평균 색상 변수를 그림자에 주입. 로딩 실패 시 rgba 폴백 사용 */
+  box-shadow: 0 10px 30px var(--shadow-color, rgba(0, 0, 0, 0.4));
+  /* Hover 진입 시(Mouse Enter) 은은하게 그림자가 번지도록 트랜지션 부여 (0.3s) */
+  transition: box-shadow 0.3s ease;
 }
 
 /* 이미지가 아직 로딩되지 않았을 때만 정방형 비율 유지. 로딩 완료 시 자연스러운 높이로 복귀 */

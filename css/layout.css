@@ -86,16 +86,17 @@
   font-weight: 500;
   cursor: pointer;
   color: #000;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  opacity: 1; /* 창 활성화 중 아님: 기본 검은색 */
   padding: 10px 20px;
   position: relative;
   /* ::after 아이콘 배치를 위해 추가 */
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: opacity 0.2s;
 }
 
 .nav-btn:hover {
-  opacity: 0.6;
-  transition: opacity 0.2s;
+  opacity: 0.6; /* 호버 중: 회색 */
 }
 
 .nav-btn:active {
@@ -103,11 +104,11 @@
 }
 
 .nav-btn.is-active {
-  opacity: 0.4;
+  opacity: 0.3; /* 창 활성화 중: 밝은 회색 */
 }
 
 .nav-btn.is-active:hover {
-  opacity: 1;
+  opacity: 0.6; /* 활성화 창 호버: 회색 통일 */
 }
 
 .nav-btn.will-close {
