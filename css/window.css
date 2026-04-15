@@ -136,33 +136,23 @@
   position: relative;
   /* 부드러운 스크롤 */
   -webkit-overflow-scrolling: touch; 
-  padding: 20px; /* 가장자리의 드래그 전용 빈 공간 */
-  
   /* 반응형 컨테이너 쿼리 기준 설정 (창의 실제 너비에 반응) */
   container-type: inline-size;
   container-name: window-panel;
+  /* Chrome Scroll Latching 방지: 경계 도달 시 스크롤 체이닝과 오버스크롤 바운스를 차단하여
+     커서를 움직여야 스크롤이 재개되는 현상을 원천 봉쇄 */
+  overscroll-behavior: contain;
 }
 
 /* 실제 텍스트 및 콘텐츠가 담기는 문서 영역 (선택 가능, hug) */
 .window-document {
-  padding-bottom: 40px; /* 창 내부 여력을 위한 하단 패딩 */
+  padding: 20px;
+  padding-bottom: 40px;
   position: relative;
+  /* 기존 마이너스 마진 및 트릭 삭제 */
 }
 
-/* 커스텀 얇은 스크롤바 (Webkit) */
-.window-content-area::-webkit-scrollbar {
-  width: 6px;
-}
-.window-content-area::-webkit-scrollbar-track {
-  background: transparent;
-}
-.window-content-area::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.2);
-  border-radius: 3px;
-}
-.window-content-area::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(0, 0, 0, 0.4);
-}
+/* 구 .window-content-area 커스텀 스크롤바 코드는 js 가짜 스크롤바로 이탈, 삭제됨 */
 
 /* --- 리사이즈 핸들 (8방향) --- */
 .resize-handle {

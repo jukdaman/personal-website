@@ -73,8 +73,9 @@
   align-items: center;
   gap: 60px;
   z-index: var(--z-nav);
-  pointer-events: auto;
-  /* 네비는 클릭 가능해야 함 */
+  pointer-events: none;
+  /* 투명 그래디언트 영역이 뒤쪽 창의 스크롤/클릭을 먹지 않도록
+     컨테이너 자체는 이벤트를 통과시키고, 버튼만 개별로 auto 처리 */
   background: linear-gradient(to top, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 100%);
 }
 
@@ -93,6 +94,7 @@
   text-transform: uppercase;
   letter-spacing: 1px;
   transition: opacity 0.2s;
+  pointer-events: auto; /* 부모 nav가 none이므로 버튼만 개별 허용 */
 }
 
 .nav-btn:hover {

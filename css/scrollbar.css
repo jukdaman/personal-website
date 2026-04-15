@@ -1,0 +1,70 @@
+/* scrollbar.css - JS 하이브리드 커스텀 오버레이 스크롤바 스타일 */
+
+/* 1. 네이티브 물리 스크롤바 완전히 숨김 (레이아웃 차지 방지) */
+.no-native-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.no-native-scrollbar {
+  -ms-overflow-style: none !important; /* IE, Edge */
+  scrollbar-width: none !important; /* Firefox */
+}
+
+/* 2. 가짜 스크롤바 트랙 */
+.custom-scrollbar-track {
+  position: absolute;
+  pointer-events: none; /* 트랙 자체는 입력을 무시하여 뒷배경 클릭 가능 적용 */
+  z-index: 999;
+  transition: opacity 0.3s ease;
+}
+.custom-scrollbar-track.track-y {
+  right: 0;
+  width: 12px;
+}
+.custom-scrollbar-track.track-x {
+  bottom: 0;
+  height: 12px;
+}
+
+/* 3. 가짜 스크롤바 썸 (Thumb, 실제 잡고 끄는 막대부분) */
+.custom-scrollbar-thumb {
+  position: absolute;
+  /* 마우스 오버 전 기본 썸 디자인 */
+  background-color: rgba(0, 0, 0, 0.2);
+  border: 2px solid transparent; /* 좌우상하 2px 투명 보더로 썸 크기 축소 (보이는건 8px) + 히트 확대 */
+  border-radius: 6px;
+  background-clip: padding-box;
+  
+  pointer-events: auto; /* 여긴 드래그가 먹혀야 하므로 auto 선언 */
+  cursor: pointer;
+  box-sizing: border-box;
+  /* GPU 가속 이동을 위한 Transition (JS에서 transform 사용 중) */
+  will-change: transform;
+}
+
+.custom-scrollbar-thumb.thumb-y {
+  top: 0;
+  right: 0;
+  width: 100%;
+}
+.custom-scrollbar-thumb.thumb-x {
+  bottom: 0;
+  left: 0;
+  height: 100%;
+}
+
+/* 4. 데스크탑 썸 호버 및 드래깅 피드백 */
+.custom-scrollbar-thumb:hover,
+.custom-scrollbar-thumb.is-dragging {
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+/* 5. 2차 이미지 뷰어일 때 다크 모드 속성 (트랙은 부모 컨텍스트를 상속받음) */
+.image-viewer .custom-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+.image-viewer .custom-scrollbar-thumb:hover,
+.image-viewer .custom-scrollbar-thumb.is-dragging {
+  background-color: rgba(255, 255, 255, 0.4);
+}

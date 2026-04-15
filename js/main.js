@@ -158,15 +158,23 @@ document.addEventListener('DOMContentLoaded', () => {
       if (doc) {
         doc.innerHTML = contentHTML;
       }
+      
+      // 커스텀 스크롤바 연결 (내부 컨텐츠 주입 후 실행)
+      if (!win.customScrollbar) {
+        win.customScrollbar = new CustomScrollbar(win.element.querySelector('.window-content-area'));
+      }
+    } else if (win && !win.customScrollbar) {
+      // 이미 열려있지만 스크롤바가 없는 경우 대비
+      win.customScrollbar = new CustomScrollbar(win.element.querySelector('.window-content-area'));
     }
   }
 
   // 글로벌 접근 가능하도록 헬퍼 등록 (HTML 내 인라인 이벤트용)
-  window.openSecondaryWindow = function(id, title, contentHTML, parentId) {
+  window.openSecondaryWindow = function(id, title, contentHTML, parentId, isViewer = false) {
     const initWidth = Math.max(300, Math.min(450, window.innerWidth * 0.25));
     const initHeight = Math.max(300, Math.min(500, window.innerHeight * 0.5));
 
-    window.windowManager.openWindow({
+    const win = window.windowManager.openWindow({
       id: `window-secondary-${id}`,
       title: title,
       contentHTML: contentHTML,
@@ -174,6 +182,27 @@ document.addEventListener('DOMContentLoaded', () => {
       height: initHeight,
       parentId: parentId
     });
+
+    if (isViewer && win) {
+      const contentArea = win.element.querySelector('.window-content-area');
+      if (contentArea) {
+        contentArea.style.padding = '0';
+        contentArea.style.overflow = 'hidden'; // 부모의 불필요한 스크롤 차단
+        contentArea.style.backgroundColor = '#111';
+        contentArea.style.display = 'flex';
+        contentArea.classList.add('image-viewer'); // Hover 트리거 및 식별자용
+        
+        // 다단 구조 단순화: window-document를 제거하고 직접 인젝트
+        contentArea.innerHTML = contentHTML;
+        
+        const viewport = contentArea.querySelector('.image-viewer-viewport');
+        if (viewport && !win.customScrollbar) {
+          win.customScrollbar = new CustomScrollbar(viewport);
+        }
+      }
+    } else if (win && !win.customScrollbar) {
+      win.customScrollbar = new CustomScrollbar(win.element.querySelector('.window-content-area'));
+    }
   };
 
   // 이미지 로드 시 캔버스(Canvas) 기반 평균 색상 추출 및 그림자 색상 적용 (is-loaded 제어 병행)
@@ -208,7 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // 갤러리 아이템 클릭 시 토글 (종료/열기) 및 active 상태 관리
-  window.toggleWorkProject = function(btnElement, id, title, contentHTML) {
+  window.toggleWorkProject = function(btnElement, id, title, imgSrc, caption) {
     const winId = `window-secondary-${id}`;
     
     // 만약 이미 열려 있다면 완전히 종료되게 설정
@@ -216,11 +245,88 @@ document.addEventListener('DOMContentLoaded', () => {
       window.windowManager.closeWindow(winId);
       // is-active 해제는 아래 windowClosed 이벤트 리스너가 수행함
     } else {
-      // 없다면 열기 (WORK 창에서 열리는 것이므로 부모 명시)
-      window.openSecondaryWindow(id, title, contentHTML, 'window-primary-work');
+      // 불필요한 .image-viewer 래퍼 삭제 및 다단 구조 단순화
+      const contentHTML = `
+        <div class="image-viewer-viewport">
+          <img src="${imgSrc}" class="image-viewer-img mode-contain" data-scale="1" />
+        </div>
+        <div class="image-viewer-controls">
+          <button class="iv-btn" onclick="window.ivZoom('${winId}', 0.2)" title="Zoom In"><svg width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M11 19c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm1 5h2v2h-2v2h-2v-2H8v-2h2V8h2v2zM21 21l-4.35-4.35"/></svg></button>
+          <button class="iv-btn" onclick="window.ivZoom('${winId}', -0.2)" title="Zoom Out"><svg width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M11 19c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm3 7H8v-2h6v2zM21 21l-4.35-4.35"/></svg></button>
+          <button class="iv-btn" onclick="window.ivSetZoom('${winId}', 1)" title="100%">1:1</button>
+          <button class="iv-btn is-active iv-fill-btn" onclick="window.ivFill('${winId}')" title="Fit to Window"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M20 4H4v16h16V4zm-2 14H6V6h12v12z"/></svg></button>
+        </div>
+        <div class="image-viewer-footer">
+          <div class="img-desc-content">
+            <h4 class="desc-title">${title}</h4>
+            <p class="desc-caption">${caption}</p>
+          </div>
+        </div>
+      `;
+      // 없다면 열기 (WORK 창에서 열리는 것이므로 부모 명시, 뷰어 모드 true)
+      window.openSecondaryWindow(id, title, contentHTML, 'window-primary-work', true);
       btnElement.classList.add('is-active');
       btnElement.setAttribute('data-win-id', winId); // 이벤트 리스너에서 쉽게 찾기 위해 ID 보관
     }
+  };
+
+  // --- 3. 이미지 뷰어(2차 창) 줌 제어 로직 ---
+  window.ivZoom = function(winId, delta) {
+    const win = window.windowManager.windows.get(winId);
+    if (!win) return;
+    const img = win.element.querySelector('.image-viewer-img');
+    const fillBtn = win.element.querySelector('.iv-fill-btn');
+    if (!img) return;
+
+    img.classList.remove('mode-contain');
+    if (fillBtn) fillBtn.classList.remove('is-active');
+
+    let currentScale = parseFloat(img.dataset.scale) || 1;
+    currentScale = Math.max(0.1, currentScale + delta);
+    img.dataset.scale = currentScale;
+
+    if (!img.dataset.natW) {
+      img.dataset.natW = img.naturalWidth || img.clientWidth;
+      img.dataset.natH = img.naturalHeight || img.clientHeight;
+    }
+
+    img.style.width = (img.dataset.natW * currentScale) + 'px';
+    img.style.height = (img.dataset.natH * currentScale) + 'px';
+  };
+
+  window.ivSetZoom = function(winId, scale) {
+    const win = window.windowManager.windows.get(winId);
+    if (!win) return;
+    const img = win.element.querySelector('.image-viewer-img');
+    const fillBtn = win.element.querySelector('.iv-fill-btn');
+    if (!img) return;
+
+    img.classList.remove('mode-contain');
+    if (fillBtn) fillBtn.classList.remove('is-active');
+
+    img.dataset.scale = scale;
+    if (!img.dataset.natW) {
+      img.dataset.natW = img.naturalWidth || img.clientWidth;
+      img.dataset.natH = img.naturalHeight || img.clientHeight;
+    }
+
+    img.style.width = (img.dataset.natW * scale) + 'px';
+    img.style.height = (img.dataset.natH * scale) + 'px';
+  };
+
+  window.ivFill = function(winId) {
+    const win = window.windowManager.windows.get(winId);
+    if (!win) return;
+    const img = win.element.querySelector('.image-viewer-img');
+    const fillBtn = win.element.querySelector('.iv-fill-btn');
+    if (!img) return;
+
+    img.classList.add('mode-contain');
+    if (fillBtn) fillBtn.classList.add('is-active');
+    
+    img.style.width = '';
+    img.style.height = '';
+    img.dataset.scale = 1;
   };
 
   // 다른 경로(타이틀바 X 버튼, 제목 영역 더블클릭 등)로 2차 창이 독립적으로 닫혔을 때 

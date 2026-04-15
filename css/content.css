@@ -191,3 +191,127 @@
     column-count: 6;
   }
 }
+
+/* --- Image Viewer (2차 창) --- */
+/* .image-viewer 클래스는 window-content-area에 동적으로 추가됨 */
+
+.image-viewer-viewport {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  display: flex;
+  overscroll-behavior: contain;
+}
+
+/* 구 스크롤바 코드는 JS 하이브리드 스크롤바로 대치됨 */
+
+.image-viewer-img {
+  display: block;
+  transition: transform 0.2s ease, width 0.2s ease, height 0.2s ease;
+  transform-origin: center center;
+  /* 이미지가 뷰포트보다 작을 땐 상하좌우 중앙을 유지하고, 커질 땐 자연스럽게 top-left로 앵커링되어 100% 스크롤 영역을 확보해주는 마법의 속성 */
+  margin: auto;
+}
+
+.image-viewer-img.mode-contain {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
+  transition: none;
+}
+
+.image-viewer-controls {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 8px;
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 10;
+}
+
+.iv-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.2s;
+  padding: 0;
+}
+
+.iv-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.iv-btn.is-active {
+  background: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.image-viewer-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0) 100%);
+  padding: 60px 24px 24px 24px;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.image-viewer:hover .image-viewer-footer {
+  opacity: 1;
+}
+
+/* 스크롤바 썸에 호버/드래그 중일 때는 footer를 숨김 (스크롤바 조작 시 시야 방해 방지) */
+.image-viewer:has(.custom-scrollbar-thumb:hover) .image-viewer-footer,
+.image-viewer:has(.custom-scrollbar-thumb.is-dragging) .image-viewer-footer {
+  opacity: 0 !important;
+  transition: opacity 0.15s ease;
+}
+
+.img-desc-content {
+  transform: translateY(10px);
+  transition: transform 0.3s ease;
+  color: #fff;
+  pointer-events: auto; /* Allow selecting text */
+}
+
+.image-viewer:hover .img-desc-content {
+  transform: translateY(0);
+}
+
+.image-viewer:has(.custom-scrollbar-thumb:hover) .img-desc-content,
+.image-viewer:has(.custom-scrollbar-thumb.is-dragging) .img-desc-content {
+  transform: translateY(10px) !important;
+}
+
+.desc-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  letter-spacing: -0.5px;
+}
+
+.desc-caption {
+  font-size: 14px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.4;
+}

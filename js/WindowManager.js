@@ -775,6 +775,11 @@ class WindowInstance {
   }
 
   destroy() {
+    if (this.customScrollbar) {
+      this.customScrollbar.destroy();
+      this.customScrollbar = null;
+    }
+    
     if (this.element && this.element.parentNode) {
       this.element.parentNode.removeChild(this.element);
     }
