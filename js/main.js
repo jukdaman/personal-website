@@ -26,109 +26,195 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- 2. 하단 네비게이션 제어 ---
   const navBtns = document.querySelectorAll('.nav-btn');
-  
-  // Nav 버튼의 호버 및 CSS 애니메이션 지연시간 정의 (논리적 유예시간 계산용)
-  const HOVER_DELAY = 700;
-  const ANIM_DELAY = 300;
 
-  // will-close 표시 갱신: 모든 상황에서 0.7초 호버 시 시각적 효과 표시, 애니메이션 완료 후 논리적 닫기 허용
-  function updateNavCloseIndicator(btn) {
-    if (!btn.matches(':hover') || !btn.classList.contains('is-active')) {
-      resetNavCloseState(btn); // 창 인자는 나중에 구하므로 일단 btn만
-      return;
-    }
-    
-    const pageId = btn.getAttribute('data-target');
-    const winId = `window-primary-${pageId}`;
-    const win = window.windowManager.windows.get(winId);
-
-    if (win && !win.isMinimized && window.windowManager.isTopWindow(win)) {
-      if (btn.dataset.hovering === "true") return; // 이미 카운트다운 진행 중이면 무시
-      btn.dataset.hovering = "true";
-
-      btn.hoverTimeout = setTimeout(() => {
-        if (!btn.matches(':hover')) return; // 호버가 풀렸다면 취소
-        
-        // 시각적 미리보기 등장
-        btn.classList.add('will-close');
-        win.element.classList.add('is-closing-preview');
-
-        // CSS 등장 애니메이션이 완전히 끝난 시점에 논리적 닫기 권한 부여
-        btn.animTimeout = setTimeout(() => {
-          if (btn.matches(':hover')) {
-            btn.dataset.canClose = "true";
-          }
-        }, ANIM_DELAY);
-
-      }, HOVER_DELAY);
-
-    } else {
-      resetNavCloseState(btn, win);
-    }
-  }
-
+  // 닫기 상태 초기화 헬퍼
   function resetNavCloseState(btn, win) {
-    clearTimeout(btn.hoverTimeout);
-    clearTimeout(btn.animTimeout);
-    btn.dataset.hovering = "false";
-    btn.dataset.canClose = "false";
-    btn.classList.remove('will-close');
-    if (win && win.element) win.element.classList.remove('is-closing-preview');
+    if (btn) btn.classList.remove('will-close', 'will-restore');
+    if (win && win.element) win.element.classList.remove('is-closing-preview', 'is-restoring-preview');
   }
 
   navBtns.forEach((btn, index) => {
-    btn.dataset.canClose = "false";
-    
-    btn.addEventListener('click', () => {
+    let isPointerDown = false;
+    let isClosePrepared = false;
+
+    // 강제 초기화
+    resetNavCloseState(btn, null);
+
+    btn.addEventListener('pointerdown', (e) => {
+      // 마우스 왼쪽 버튼이나 터치만 허용
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      isPointerDown = true;
+
       const pageId = btn.getAttribute('data-target');
       const winId = `window-primary-${pageId}`;
       const win = window.windowManager.windows.get(winId);
       
-      // 대상이 맨 앞에 있는 창일 때, 아직 시각적 애니메이션이 완성되지 않았다면 클릭(최소화) 무시
-      if (win && !win.isMinimized && window.windowManager.isTopWindow(win)) {
-        if (btn.dataset.canClose !== "true") {
-          // 현재 창 위에 1px이라도 겹치는 창이 있는지 확인 (완벽한 독립 단독 화면 상태인가?)
-          const isUnobscured = window.windowManager.isFullyUnobscured(win);
-
-          // 비록 닫지는 않지만, 선택(클릭)했으므로 z-index는 맨 위(최상단)로 확실하게 끌어올려줌
-          window.windowManager.bringToFront(win);
-          
-          // 조금이라도 가려진 상태에서 조작(클릭)했다면, 이 클릭의 1차적인 의도는 "포커스(Z-index 갱신)"임.
-          // 따라서 패스트포워드를 발동하지 않고, 포커스된 시점을 기준으로 유예시간(700ms)이 처음부터 다시 주어지도록 타이머를 리셋함.
-          if (!isUnobscured) {
-            resetNavCloseState(btn, win);
-            updateNavCloseIndicator(btn);
-            return;
+      // 대상 창이 이미 열려있는 상태라면 (배경에 있든 맨 앞에 있든 상관없이)
+      if (win && !win.isMinimized) {
+        // 대상이 다른 최대화된 창 뒤에 가려져 있는지 확인
+        let isCoveredByMaximized = false;
+        const winZ = parseInt(win.element.style.zIndex) || 0;
+        
+        window.windowManager.windows.forEach(otherWin => {
+          if (!otherWin.isMinimized && otherWin.isMaximized && otherWin.id !== win.id) {
+            const otherZ = parseInt(otherWin.element.style.zIndex) || 0;
+            if (otherZ > winZ) {
+              isCoveredByMaximized = true; // 나보다 Z인덱스가 높은 웅장한 최대화 창이 존재함
+            }
           }
+        });
 
-          // --- 패스트포워드(즉시 종료 대기 상태 전환) 로직 ---
-          // 이미 완벽한 최상단(Focus) 상태인데 유예 시간을 기다리지 않고 또 클릭했다면 명확한 닫기 의도로 간주함
-          // 타이머를 파기하고 즉시 '닫기 UI'와 '닫기 권한'을 강제 부여함
-          clearTimeout(btn.hoverTimeout);
-          clearTimeout(btn.animTimeout);
+        // 나를 가리는 다른 최대화 창이 없더라도, 내가 최대화상태인데 다른 작은 창 밑에 깔려 있다면 구출이 먼저 진행되어야 함.
+        const wasTopWindow = window.windowManager.isTopWindow(win);
+
+        // 일단 무조건 맨 위로 끌어올림
+        window.windowManager.bringToFront(win);
+        
+        if (isCoveredByMaximized) {
+          // 어떤 상태의 창이든 다른 웅장한 최대화 창에 가려져 있었다면, 이번 클릭은 '구출(꺼내기)' 목적이므로 닫힘/복원 트리거를 무시
+          isClosePrepared = false;
+        } else if (win.isMaximized && !wasTopWindow) {
+          // 최대화 창이지만 내 위에 다른 일반 창이 포개져 있었다면, 화면 맨 앞으로 끌고 오는 것 자체가 목적이므로 복원을 무시함
+          isClosePrepared = false;
+        } else if (win.isMaximized) {
+          // 창 자신이 최대화 상태이며 아무에게도 가려지지 않은 진짜 최상단이라면 '복원(Restore)' 미리보기 표시
+          btn.classList.add('will-restore');
+          win.element.classList.add('is-restoring-preview');
+          isClosePrepared = 'restore';
+        } else {
+          // 아무에게도 안 가려진 일반 창이라면 닫기(Close) 대기 상태로 전환
           btn.classList.add('will-close');
           win.element.classList.add('is-closing-preview');
-          btn.dataset.canClose = "true";
-          
-          return;
+          isClosePrepared = 'close';
         }
+      } else {
+        // 창이 최소화(닫혀있는) 상태이거나 아직 생성되지 않은 상태라면 동작 예비 방어
+        isClosePrepared = false;
       }
-
-      openPrimaryWindow(pageId, index, navBtns.length);
-      // 클릭 후 상태가 바뀌었으므로 즉시 재평가
-      resetNavCloseState(btn, win);
-      updateNavCloseIndicator(btn);
     });
 
-    btn.addEventListener('mouseenter', () => updateNavCloseIndicator(btn));
-    
-    btn.addEventListener('mouseleave', () => {
+    btn.addEventListener('pointerup', (e) => {
+      if (!isPointerDown) return;
+      isPointerDown = false;
+
+      const pageId = btn.getAttribute('data-target');
+      const winId = `window-primary-${pageId}`;
+      const win = window.windowManager.windows.get(winId);
+
+      if (isClosePrepared === 'close') {
+        // 버튼 위에서 마우스를 뗐을 때 비로소 창이 닫힘(최소화)
+        resetNavCloseState(btn, win);
+        if (win && !win.isMinimized) window.windowManager.minimizeWindow(winId);
+        isClosePrepared = false;
+      } else if (isClosePrepared === 'restore') {
+        // 버튼 위에서 마우스를 뗐을 때 창 복원
+        resetNavCloseState(btn, win);
+        if (win && !win.isMinimized && win.isMaximized) win.toggleMaximize();
+        isClosePrepared = false;
+      } else {
+        // 이미 켜져있는 창이 다른 최대화 창 등에 의해 구출된 경우(isClosePrepared === false) 
+        // openPrimaryWindow(오픈/토글 내장함수)를 실행하면 다시 꺼져버리는(토글) 문제가 발생하므로,
+        // 진짜 닫혀있는 상태일 때만 openPrimaryWindow를 실행하도록 방어막 추가!
+        if (!win || win.isMinimized) {
+          openPrimaryWindow(pageId, index, navBtns.length);
+        }
+        resetNavCloseState(btn, win);
+      }
+    });
+
+    btn.addEventListener('pointerleave', () => {
+      if (!isPointerDown) return;
+      isPointerDown = false;
+
+      const pageId = btn.getAttribute('data-target');
+      const winId = `window-primary-${pageId}`;
+      const win = window.windowManager.windows.get(winId);
+      
+      // 드래그해서 버튼 밖으로 벗어난 경우 닫기 대기 상태 취소 (X 아이콘 사라짐)
+      if (isClosePrepared) {
+        resetNavCloseState(btn, win);
+        isClosePrepared = false;
+      }
+    });
+  });
+
+  // --- CLOSE ALL 버튼 제어 ---
+  const closeAllBtn = document.getElementById('close-all-btn');
+
+  // 열려 있는(최소화되지 않은) 창이 1개 이상이면 버튼 표시
+  function updateCloseAllVisibility() {
+    let hasVisible = false;
+    window.windowManager.windows.forEach(win => {
+      if (!win.isMinimized) hasVisible = true;
+    });
+    closeAllBtn.classList.toggle('is-visible', hasVisible);
+  }
+
+  closeAllBtn.addEventListener('click', () => {
+    // 순간적으로 전환 효과 없이 즉시 숨기기 위한 클래스 부여
+    closeAllBtn.classList.add('clicked-hide');
+    setTimeout(() => closeAllBtn.classList.remove('clicked-hide'), 50);
+
+    // 1차 창은 최소화(minimize), 2차 창은 완전히 닫기(close)
+    const primaryToMinimize = [];
+    const secondaryToClose = [];
+
+    window.windowManager.windows.forEach((win, id) => {
+      if (!win.isMinimized) {
+        if (id.startsWith('window-primary-')) {
+          primaryToMinimize.push(id);
+        } else {
+          secondaryToClose.push(id);
+        }
+      }
+    });
+
+    primaryToMinimize.forEach(id => window.windowManager.minimizeWindow(id));
+    secondaryToClose.forEach(id => window.windowManager.closeWindow(id));
+
+    // Nav 버튼의 닫기 상태도 모두 리셋
+    navBtns.forEach(btn => {
       const pageId = btn.getAttribute('data-target');
       const winId = `window-primary-${pageId}`;
       const win = window.windowManager.windows.get(winId);
       resetNavCloseState(btn, win);
     });
+    updateCloseAllVisibility();
   });
+
+  closeAllBtn.addEventListener('mouseenter', () => {
+    // CLOSE ALL에 마우스를 올리면 열려있는 모든 창(1차, 2차)에 X 아이콘 미리보기 표시
+    window.windowManager.windows.forEach((win, id) => {
+      if (!win.isMinimized) {
+        win.element.classList.add('is-closing-preview');
+        // 1차 창인 경우 Nav 버튼에도 X 미리보기 적용
+        if (id.startsWith('window-primary-')) {
+          const match = id.match(/^window-primary-(.+)$/);
+          if (match) {
+            const navBtn = document.querySelector(`.nav-btn[data-target="${match[1]}"]`);
+            if (navBtn) navBtn.classList.add('will-close');
+          }
+        }
+      }
+    });
+  });
+
+  closeAllBtn.addEventListener('mouseleave', () => {
+    // 마우스를 떼면 모든 창의 미리보기 상태 취소
+    window.windowManager.windows.forEach((win, id) => {
+      win.element.classList.remove('is-closing-preview');
+      if (id.startsWith('window-primary-')) {
+        const match = id.match(/^window-primary-(.+)$/);
+        if (match) {
+          const navBtn = document.querySelector(`.nav-btn[data-target="${match[1]}"]`);
+          if (navBtn) navBtn.classList.remove('will-close');
+        }
+      }
+    });
+  });
+
+  // 전역에서 접근 가능하도록 등록 (WindowManager가 openWindow/minimizeWindow 후 호출)
+  window.updateCloseAllVisibility = updateCloseAllVisibility;
 
   async function openPrimaryWindow(pageId, index, totalBtnCount) {
     const title = pageId.toUpperCase();

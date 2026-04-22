@@ -5,63 +5,97 @@
   position: absolute;
   top: 0;
   left: 0;
-  width: 600px; /* 기본 크기 */
+  width: 600px;
+  /* 기본 크기 */
   height: 800px;
   background-color: #fff;
-  border: 1px solid #000;
+  border: 1px solid rgba(0, 0, 0, 1);
   display: flex;
   flex-direction: column;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-  pointer-events: auto; /* 데스크탑 area가 none이므로 자식에서 auto 선언 필수 */
+  pointer-events: auto;
+  /* 데스크탑 area가 none이므로 자식에서 auto 선언 필수 */
   outline: none;
-  
+
+  /* 부드러운 상태 전환 */
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+
   /* will-change 적용으로 브라우저 렌더링(GPU) 최적화 */
-  will-change: transform, width, height, opacity;
-  transition: opacity 0.3s ease;
+  will-change: transform, width, height;
 }
 
-/* Nav 호버 시 창 닫기 미리보기 (본체 대신 ::before 딤 처리 사용) */
+/* Nav 클릭 시 창 닫기 미리보기 (본체 대신 ::before 딤 처리 사용) */
 .os-window::before {
   content: "✕";
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  right: 0;
+  bottom: 0;
   background-color: rgba(0, 0, 0, 0.4);
   display: flex;
   justify-content: center;
   align-items: center;
   font-size: 160px;
-  font-weight: 300;
-  color: white; /* 어두운 배경 대비 흰색 X */
+  font-weight: 100;
+  color: rgba(224, 224, 224, 0.8);
+  /* 밝은 회색(Light Grey) 80% 불투명도 */
   opacity: 0;
   z-index: 105;
   pointer-events: none;
-  transition: opacity 0.3s ease;
 }
 
 .os-window.is-closing-preview::before {
   opacity: 1;
 }
 
-/* 겹처서 가려진(Top이 아닌) 창을 위한 딤 처리 */
+.os-window.is-restoring-preview::before {
+  content: "❐";
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.6);
+  color: rgba(64, 64, 64, 0.8);
+}
+
+/* 겹쳐서 가려진 창: 흰색 오버레이로 공기원근 효과 (4단계) */
 .os-window::after {
   content: "";
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background: #000;
+  right: 0;
+  bottom: 0;
+  background: #fff;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.1s ease;
+  transition: opacity 0.15s ease;
   z-index: 100;
 }
 
-.os-window.is-dimmed::after {
-  opacity: 0.05;
+.os-window.depth-2 {
+  border-color: rgba(0, 0, 0, 0.8);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+.os-window.depth-2::after {
+  opacity: 0.1;
+}
+
+.os-window.depth-3 {
+  border-color: rgba(0, 0, 0, 0.6);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.09);
+}
+
+.os-window.depth-3::after {
+  opacity: 0.15;
+}
+
+.os-window.depth-4 {
+  border-color: rgba(0, 0, 0, 0.4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.os-window.depth-4::after {
+  opacity: 0.2;
 }
 
 /* 드래그 및 리사이즈 도중에는 내부 iframe, 이미지 등에 이벤트 뺏기지 않도록 차단 */
@@ -80,7 +114,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 0 10px;
-  cursor: grab; /* 드래그 가능 표시 */
+  cursor: grab;
+  /* 드래그 가능 표시 */
   flex-shrink: 0;
   user-select: none;
 }
@@ -94,7 +129,8 @@
   font-weight: 500;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  cursor: default; /* 타이틀바(grab)와 구분: 더블클릭 시 닫기 영역임을 암시 */
+  cursor: default;
+  /* 타이틀바(grab)와 구분: 더블클릭 시 닫기 영역임을 암시 */
   /* 제목이 길 때 생략 */
   white-space: nowrap;
   overflow: hidden;
@@ -135,7 +171,7 @@
   overflow-x: hidden;
   position: relative;
   /* 부드러운 스크롤 */
-  -webkit-overflow-scrolling: touch; 
+  -webkit-overflow-scrolling: touch;
   /* 반응형 컨테이너 쿼리 기준 설정 (창의 실제 너비에 반응) */
   container-type: inline-size;
   container-name: window-panel;
@@ -152,7 +188,7 @@
   /* 기존 마이너스 마진 및 트릭 삭제 */
 }
 
-/* 구 .window-content-area 커스텀 스크롤바 코드는 js 가짜 스크롤바로 이탈, 삭제됨 */
+
 
 /* --- 리사이즈 핸들 (8방향) --- */
 .resize-handle {
@@ -160,14 +196,69 @@
   z-index: 10;
 }
 
-.resize-handle.n { top: -4px; left: 0; width: 100%; height: 8px; cursor: ns-resize; }
-.resize-handle.s { bottom: -4px; left: 0; width: 100%; height: 8px; cursor: ns-resize; }
-.resize-handle.e { top: 0; right: -4px; width: 8px; height: 100%; cursor: ew-resize; }
-.resize-handle.w { top: 0; left: -4px; width: 8px; height: 100%; cursor: ew-resize; }
-.resize-handle.ne { top: -4px; right: -4px; width: 12px; height: 12px; cursor: nesw-resize; }
-.resize-handle.nw { top: -4px; left: -4px; width: 12px; height: 12px; cursor: nwse-resize; }
-.resize-handle.se { bottom: -4px; right: -4px; width: 12px; height: 12px; cursor: nwse-resize; }
-.resize-handle.sw { bottom: -4px; left: -4px; width: 12px; height: 12px; cursor: nesw-resize; }
+.resize-handle.n {
+  top: -4px;
+  left: 0;
+  width: 100%;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.resize-handle.s {
+  bottom: -4px;
+  left: 0;
+  width: 100%;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.resize-handle.e {
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+}
+
+.resize-handle.w {
+  top: 0;
+  left: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+}
+
+.resize-handle.ne {
+  top: -4px;
+  right: -4px;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
+}
+
+.resize-handle.nw {
+  top: -4px;
+  left: -4px;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+
+.resize-handle.se {
+  bottom: -4px;
+  right: -4px;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+
+.resize-handle.sw {
+  bottom: -4px;
+  left: -4px;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
+}
 
 
 /* --- 모바일 뷰 (<767px) --- */
@@ -178,17 +269,20 @@
     height: 100% !important;
     top: 0 !important;
     left: 0 !important;
-    transform: none !important; /* 드래그 위치 무시 */
+    transform: none !important;
+    /* 드래그 위치 무시 */
     border: none;
     box-shadow: none;
     will-change: auto;
   }
-  
+
   .window-titlebar {
-    cursor: default; /* 모바일은 드래그 불가 */
+    cursor: default;
+    /* 모바일은 드래그 불가 */
   }
 
   .resize-handle {
-    display: none; /* 모바일은 리사이즈 불가 */
+    display: none;
+    /* 모바일은 리사이즈 불가 */
   }
 }

@@ -98,7 +98,7 @@
 }
 
 .nav-btn:hover {
-  opacity: 0.6; /* 호버 중: 회색 */
+  opacity: 0.3; /* 호버 중: 밝은 회색 */
 }
 
 .nav-btn:active {
@@ -106,11 +106,11 @@
 }
 
 .nav-btn.is-active {
-  opacity: 0.3; /* 창 활성화 중: 밝은 회색 */
+  opacity: 0.6; /* 창 활성화 중: 회색 */
 }
 
 .nav-btn.is-active:hover {
-  opacity: 0.6; /* 활성화 창 호버: 회색 통일 */
+  opacity: 0.3; /* 활성화 창 호버: 통일 */
 }
 
 .nav-btn.will-close {
@@ -121,15 +121,70 @@
 .nav-btn.will-close::after {
   content: "✕";
   color: #000;
-  /* 원본 텍스트는 투명하지만 실제 X 아이콘은 검은색으로 */
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  /* 정확히 정중앙으로 배치 */
   letter-spacing: 0;
   font-size: 16px;
-  /* X 크기를 살짝 더 크게 대비되도록 */
+}
+
+.nav-btn.will-restore {
+  color: transparent;
+}
+
+.nav-btn.will-restore::after {
+  content: "❐";
+  color: #000;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  letter-spacing: 0;
+  font-size: 16px;
+}
+
+/* CLOSE ALL 버튼: 기본 스타일 (모바일/태블릿) */
+.close-all-btn {
+  position: absolute;
+  right: 20px;
+  bottom: 16px;
+  background: none;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  color: #000;
+  padding: 6px 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  pointer-events: auto;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(20px);
+  transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), visibility 0.4s;
+}
+
+.close-all-btn.is-visible {
+  opacity: 0.4;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.close-all-btn:hover {
+  opacity: 1;
+}
+
+.close-all-btn:active {
+  background: #000;
+  color: #fff;
+}
+
+.close-all-btn.clicked-hide {
+  transition: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
 /* 모바일 뷰 (<767px) - Window 컴포넌트가 패널/풀스크린으로 변할 때의 베이스 컨테이너 대응 */

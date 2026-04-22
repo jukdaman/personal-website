@@ -173,14 +173,71 @@ class WindowManager {
     return fullyClear;
   }
 
-  // 모든 창을 순회하며 Top이 아닌 창에 is-dimmed 클래스를 부여
+  // 1차 창 컴포넌트 간의 겹침을 분석하여 공기원근(Depth) 4단계 할당
   updateDimStates() {
+    const primaryWindows = [];
+    
+    // 1. 1차 창과 2차 창 분리
     this.windows.forEach(win => {
+      // 2차 창은 공기원근에서 완벽히 제외
+      if (!win.id.startsWith('window-primary-')) {
+        if (win.element) {
+          win.element.classList.remove('is-dimmed', 'depth-2', 'depth-3', 'depth-4');
+        }
+        return;
+      }
+      
       if (win.isMinimized || !win.element) return;
-      if (this.isTopWindow(win)) {
-        win.element.classList.remove('is-dimmed');
-      } else {
-        win.element.classList.add('is-dimmed');
+      primaryWindows.push(win);
+    });
+
+    // 2. z-index 내림차순 정렬 (가장 화면 앞에 있는 창이 0번 인덱스)
+    primaryWindows.sort((a, b) => {
+      const zA = parseInt(a.element.style.zIndex) || 0;
+      const zB = parseInt(b.element.style.zIndex) || 0;
+      return zB - zA;
+    });
+
+    const rects = new Map();
+    primaryWindows.forEach(win => {
+      rects.set(win.id, win.element.getBoundingClientRect());
+    });
+
+    const depths = new Map();
+
+    // 3. 위에서부터 순서대로 겹침 여부를 확인하며 위상 깊이(Topological Depth) 계산
+    primaryWindows.forEach((win, i) => {
+      let maxDepthAbove = 0;
+      const myRect = rects.get(win.id);
+
+      // 나보다 앞에 있는(위쪽에 있는) 1차 창들과 순회하며 겹침 검사
+      for (let j = 0; j < i; j++) {
+        const topWin = primaryWindows[j];
+        const topRect = rects.get(topWin.id);
+
+        const overlapX = Math.max(0, Math.min(myRect.right, topRect.right) - Math.max(myRect.left, topRect.left));
+        const overlapY = Math.max(0, Math.min(myRect.bottom, topRect.bottom) - Math.max(myRect.top, topRect.top));
+
+        // 40px 이상의 유효한 시각적 겹침이 발생했을 때 (넓게 펼칠 때의 쾌적함을 위해 판정 완화)
+        if (overlapX > 40 && overlapY > 40) {
+          const topDepth = depths.get(topWin.id);
+          maxDepthAbove = Math.max(maxDepthAbove, topDepth);
+        }
+      }
+
+      // 내 깊이는 (나를 가리는 창들 중 가장 깊은 뎁스) + 1
+      const myDepth = maxDepthAbove + 1;
+      depths.set(win.id, myDepth);
+
+      // 4. CSS 클래스 적용
+      win.element.classList.remove('is-dimmed', 'depth-2', 'depth-3', 'depth-4');
+      
+      // 최대화된 창은 어떤 경우에도 공기원근의 영향을 받지 않고 깨끗해야 함
+      if (win.isMaximized) return;
+
+      const finalDepth = Math.min(4, myDepth); // 최대 4단계 (40%)까지만 제한
+      if (finalDepth > 1) {
+        win.element.classList.add(`depth-${finalDepth}`);
       }
     });
   }
@@ -296,6 +353,7 @@ class WindowManager {
     this.desktopArea.appendChild(win.element);
     this.bringToFront(win);
     this.updateNavState(id, true);
+    if (window.updateCloseAllVisibility) window.updateCloseAllVisibility();
     return win;
   }
 
@@ -313,6 +371,7 @@ class WindowManager {
       win.element.style.pointerEvents = 'none';
       this.updateNavState(id, false);
       this.updateDimStates();
+      if (window.updateCloseAllVisibility) window.updateCloseAllVisibility();
     }
   }
 
@@ -360,6 +419,7 @@ class WindowManager {
       this.bringToFront(win);
       this.updateNavState(id, true);
       this.updateDimStates();
+      if (window.updateCloseAllVisibility) window.updateCloseAllVisibility();
     }
   }
 
@@ -378,6 +438,7 @@ class WindowManager {
 
       // 창이 완전히 종료되었음을 알리는 커스텀 이벤트 발생 (아이템 active 해제용)
       window.dispatchEvent(new CustomEvent('windowClosed', { detail: { id } }));
+      if (window.updateCloseAllVisibility) window.updateCloseAllVisibility();
     }
   }
 
@@ -494,9 +555,10 @@ class WindowInstance {
       this.element.style.width = `100vw`;
       this.element.style.height = `100vh`;
     } else {
-      this.element.style.transform = `translate3d(${this.x}px, ${this.y}px, 0)`;
-      this.element.style.width = `${this.width}px`;
-      this.element.style.height = `${this.height}px`;
+      // 정수 좌표로 반올림: 소수점 좌표 시 border와 내부 콘텐츠 사이에 서브픽셀 간극이 발생하는 것을 방지
+      this.element.style.transform = `translate3d(${Math.round(this.x)}px, ${Math.round(this.y)}px, 0)`;
+      this.element.style.width = `${Math.round(this.width)}px`;
+      this.element.style.height = `${Math.round(this.height)}px`;
     }
   }
 

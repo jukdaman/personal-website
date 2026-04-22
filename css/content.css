@@ -148,9 +148,9 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(224, 224, 224, 0.8);
   font-size: 40px;
-  font-weight: 300;
+  font-weight: 800;
   pointer-events: none;
   /* X 아이콘이 클릭을 방해하지 않도록 */
   z-index: 2;
@@ -203,7 +203,7 @@
   overscroll-behavior: contain;
 }
 
-/* 구 스크롤바 코드는 JS 하이브리드 스크롤바로 대치됨 */
+
 
 .image-viewer-img {
   display: block;
