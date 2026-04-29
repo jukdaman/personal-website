@@ -10,7 +10,7 @@ class ContentLoader {
       return this.cache.get(pageId);
     }
     try {
-      const res = await fetch(`content/${pageId}.html`);
+      const res = await fetch(`pages/${pageId}.html`);
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const html = await res.text();
       this.cache.set(pageId, html);

@@ -22,6 +22,10 @@
 
   /* will-change 적용으로 브라우저 렌더링(GPU) 최적화 */
   will-change: transform, width, height;
+  
+  /* 반응형 컨테이너 쿼리 기준 설정 (창의 실제 너비에 반응) */
+  container-type: inline-size;
+  container-name: window-panel;
 }
 
 /* Nav 클릭 시 창 닫기 미리보기 (본체 대신 ::before 딤 처리 사용) */
@@ -172,9 +176,6 @@
   position: relative;
   /* 부드러운 스크롤 */
   -webkit-overflow-scrolling: touch;
-  /* 반응형 컨테이너 쿼리 기준 설정 (창의 실제 너비에 반응) */
-  container-type: inline-size;
-  container-name: window-panel;
   /* Chrome Scroll Latching 방지: 경계 도달 시 스크롤 체이닝과 오버스크롤 바운스를 차단하여
      커서를 움직여야 스크롤이 재개되는 현상을 원천 봉쇄 */
   overscroll-behavior: contain;
@@ -261,9 +262,9 @@
 }
 
 
-/* --- 모바일 뷰 (<767px) --- */
-/* 창들을 화면 꽉 채우는 절대 패널로 변경 */
-@media (max-width: 767px) {
+/* --- 모바일 뷰 (<425px) --- */
+/* 모바일: 윈도우 창이 화면 전체를 덮는 패널 형태 */
+@media (max-width: 425px) {
   .os-window {
     width: 100% !important;
     height: 100% !important;

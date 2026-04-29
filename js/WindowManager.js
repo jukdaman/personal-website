@@ -10,7 +10,7 @@ class WindowManager {
     // Z-index 통합: 모든 창이 동일한 계층을 공유 (클릭 시 최상단으로 올라오게 됨)
     this.activeZIndex = 100;
     
-    this.isMobile = window.innerWidth <= 767;
+    this.isMobile = window.innerWidth <= 425;
 
     this.bindGlobalEvents();
   }
@@ -20,7 +20,7 @@ class WindowManager {
     window.addEventListener('resize', () => {
       if (resizeRaf) return;
       resizeRaf = requestAnimationFrame(() => {
-        this.isMobile = window.innerWidth <= 767;
+        this.isMobile = window.innerWidth <= 425;
         this.handleResize();
         resizeRaf = null;
       });
