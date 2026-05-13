@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blackhole Synapse Animation</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #ffffff; /* 흰 바탕 */
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width, height, centerX, centerY;
+        const blackholeRadius = 80; // 중앙의 큰 검은 구체
+        const numBundles = 20; // 약 20개의 다발
+        
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            centerX = width / 2;
+            centerY = height / 2;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        class Strand {
+            constructor(startX, startY) {
+                this.reset(startX, startY);
+                this.delay = 0; 
+                this.active = false;
+            }
+            
+            reset(startX, startY) {
+                this.nodes = [{x: startX, y: startY, dotRadius: 0}];
+                this.dead = false;
+                this.sucking = false;
+                this.thickness = 0.5 + Math.random() * 1.5;
+                this.baseSpeed = 0.2 + Math.random() * 0.4; // 아주 천천히
+                
+                // 중심을 향하는 기본 각도
+                this.angle = Math.atan2(centerY - startY, centerX - startX) + (Math.random() - 0.5) * 0.8;
+                this.wobble = Math.random() * Math.PI * 2;
+                this.wobbleSpeed = 0.01 + Math.random() * 0.02;
+            }
+            
+            update() {
+                if (!this.active) {
+                    this.delay--;
+                    if (this.delay <= 0) this.active = true;
+                    return;
+                }
+                if (this.dead) return;
+                
+                let head = this.nodes[this.nodes.length - 1];
+                
+                if (!this.sucking) {
+                    const dx = centerX - head.x;
+                    const dy = centerY - head.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    
+                    if (dist < blackholeRadius - 5) {
+                        this.sucking = true;
+                    } else {
+                        const targetAngle = Math.atan2(dy, dx);
+                        this.wobble += this.wobbleSpeed;
+                        const wobbleEffect = Math.sin(this.wobble) * 0.8;
+                        
+                        let angleDiff = targetAngle - this.angle;
+                        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                        
+                        const turnSpeed = 0.02 + 5 / Math.max(dist, 10);
+                        this.angle += angleDiff * turnSpeed + wobbleEffect * 0.04;
+                        
+                        // 구체에 가까워질수록 살짝 가속
+                        const moveSpeed = this.baseSpeed * (1 + 15 / Math.max(dist, 10));
+                        
+                        const nx = head.x + Math.cos(this.angle) * moveSpeed;
+                        const ny = head.y + Math.sin(this.angle) * moveSpeed;
+                        
+                        // 시냅스 특유의 노드(점) 생성
+                        const isDot = Math.random() < 0.02;
+                        this.nodes.push({
+                            x: nx, 
+                            y: ny, 
+                            dotRadius: isDot ? this.thickness * (1.5 + Math.random() * 2) : 0
+                        });
+                        
+                        // 최대 길이 제한
+                        if (this.nodes.length > 2000) {
+                            this.nodes.shift();
+                        }
+                    }
+                } else {
+                    // 구체 속으로 빨려 들어가는 연출 (꼬리가 줄어듦)
+                    const suckSpeed = 3 + Math.floor(Math.random() * 3);
+                    for(let i=0; i<suckSpeed; i++) {
+                        if (this.nodes.length > 0) {
+                            this.nodes.shift();
+                        }
+                    }
+                    if (this.nodes.length === 0) {
+                        this.dead = true;
+                    }
+                }
+            }
+            
+            draw(ctx) {
+                if (!this.active || this.nodes.length < 2) return;
+                
+                ctx.beginPath();
+                ctx.moveTo(this.nodes[0].x, this.nodes[0].y);
+                for(let i=1; i<this.nodes.length; i++) {
+                    ctx.lineTo(this.nodes[i].x, this.nodes[i].y);
+                }
+                ctx.strokeStyle = `rgba(0, 0, 0, ${this.sucking ? 0.6 : 0.85})`;
+                ctx.lineWidth = this.thickness;
+                ctx.stroke();
+                
+                ctx.fillStyle = `rgba(0, 0, 0, ${this.sucking ? 0.6 : 0.9})`;
+                for(let i=0; i<this.nodes.length; i++) {
+                    let node = this.nodes[i];
+                    if (node.dotRadius > 0) {
+                        ctx.beginPath();
+                        ctx.arc(node.x, node.y, node.dotRadius, 0, Math.PI*2);
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+
+        class Bundle {
+            constructor() {
+                this.strands = [];
+                this.reset(true);
+            }
+            
+            reset(initial = false) {
+                // 화면 밖 허공 여기저기서 시작
+                const angle = Math.random() * Math.PI * 2;
+                const radiusDist = Math.max(width, height) / 2;
+                const distance = radiusDist + 50 + Math.random() * 200;
+                
+                const startX = centerX + Math.cos(angle) * distance;
+                const startY = centerY + Math.sin(angle) * distance;
+                
+                this.strands = [];
+                const numStrands = 3 + Math.floor(Math.random() * 5); // 다발당 3~7개의 가닥
+                for(let i=0; i<numStrands; i++) {
+                    const ox = (Math.random() - 0.5) * 40;
+                    const oy = (Math.random() - 0.5) * 40;
+                    let strand = new Strand(startX + ox, startY + oy);
+                    
+                    if (initial) {
+                        // 페이지 로드 시 이미 화면에 어느 정도 퍼져있도록 시뮬레이션
+                        strand.delay = 0;
+                        strand.active = true;
+                        const preWarm = Math.floor(Math.random() * (distance / strand.baseSpeed));
+                        for(let j=0; j<preWarm; j++) {
+                            strand.update();
+                        }
+                    } else {
+                        strand.delay = Math.random() * 200;
+                    }
+                    this.strands.push(strand);
+                }
+            }
+            
+            updateAndDraw(ctx) {
+                let allDead = true;
+                this.strands.forEach(strand => {
+                    strand.update();
+                    strand.draw(ctx);
+                    if (!strand.dead) allDead = false;
+                });
+                
+                // 다발의 모든 가닥이 구체로 빨려들어갔으면 새로 생성
+                if (allDead) {
+                    this.reset();
+                }
+            }
+        }
+
+        const bundles = [];
+        for (let i = 0; i < numBundles; i++) {
+            bundles.push(new Bundle());
+        }
+
+        function drawBlackHole() {
+            // 입체감을 위한 구체 그라데이션
+            const gradient = ctx.createRadialGradient(
+                centerX - blackholeRadius * 0.3, centerY - blackholeRadius * 0.3, blackholeRadius * 0.1,
+                centerX, centerY, blackholeRadius
+            );
+            gradient.addColorStop(0, '#333333');
+            gradient.addColorStop(0.8, '#000000');
+            gradient.addColorStop(1, '#000000');
+            
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, blackholeRadius, 0, Math.PI * 2);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            // 주변의 은은한 흡입 이펙트 (선택적)
+            const glowGradient = ctx.createRadialGradient(
+                centerX, centerY, blackholeRadius, 
+                centerX, centerY, blackholeRadius + 30
+            );
+            glowGradient.addColorStop(0, 'rgba(0,0,0,0.3)');
+            glowGradient.addColorStop(1, 'rgba(0,0,0,0)');
+            
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, blackholeRadius + 30, 0, Math.PI * 2);
+            ctx.fillStyle = glowGradient;
+            ctx.fill();
+        }
+
+        function animate() {
+            // 흰 바탕으로 매 프레임 클리어
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+
+            bundles.forEach(bundle => bundle.updateAndDraw(ctx));
+
+            drawBlackHole();
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>

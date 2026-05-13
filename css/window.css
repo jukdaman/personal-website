@@ -8,7 +8,7 @@
   width: 600px;
   /* 기본 크기 */
   height: 800px;
-  background-color: #fff;
+  background-color: #161616;
   border: 1px solid rgba(0, 0, 0, 1);
   display: flex;
   flex-direction: column;
@@ -170,7 +170,7 @@
 /* 내부 콘텐츠 영역 (흰색 바탕, 커스텀 스크롤) */
 .window-content-area {
   flex: 1;
-  background-color: #fff;
+  background-color: #161616;
   overflow-y: auto;
   overflow-x: hidden;
   position: relative;
@@ -286,4 +286,70 @@
     display: none;
     /* 모바일은 리사이즈 불가 */
   }
+}/* content.css */
+
+/* 모든 콘텐츠 공통 속성 */
+.page-content {
+  opacity: 0;
+  animation: fadeIn 0.4s ease forwards;
+  color: #fff;
+  font-family: inherit;
 }
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+.page-content h1 {
+  font-size: 28px;
+  font-weight: 800;
+  margin-bottom: 24px;
+  letter-spacing: -0.5px;
+}
+
+.page-content p {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #aaa;
+  margin-bottom: 16px;
+}
+
+.content-error {
+  color: #d32f2f;
+  padding: 16px;
+  background-color: #fee;
+  border-radius: 8px;
+  text-align: center;
+}
+
+/* 로딩 스켈레톤 */
+.loader-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #999;
+  font-size: 14px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.6;
+  }
+}
+
+/* 
+  Container Queries 
+  .window-content-area 가 컨테이너 역할을 합니다 (container-name: window-panel)
+*/

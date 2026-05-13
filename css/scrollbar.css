@@ -31,7 +31,7 @@
 .custom-scrollbar-thumb {
   position: absolute;
   /* 마우스 오버 전 기본 썸 디자인 */
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: rgba(255, 255, 255, 0.2);
   border: 2px solid transparent; /* 좌우상하 2px 투명 보더로 썸 크기 축소 (보이는건 8px) + 히트 확대 */
   border-radius: 6px;
   background-clip: padding-box;
@@ -57,7 +57,7 @@
 /* 4. 데스크탑 썸 호버 및 드래깅 피드백 */
 .custom-scrollbar-thumb:hover,
 .custom-scrollbar-thumb.is-dragging {
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: rgba(255, 255, 255, 0.4);
 }
 
 /* 5. 2차 이미지 뷰어일 때 다크 모드 속성 (트랙은 부모 컨텍스트를 상속받음) */

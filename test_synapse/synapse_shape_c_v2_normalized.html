@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Synapse - Shape C (Streamline / Tentacle)</title>
+<title>Synapse - Shape C (V2 Normalized)</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; }
@@ -114,18 +114,24 @@ function buildBundles() {
     const cp2y = 150 * windScale;
     const cp2z = -150 * windScale;
     
+    // THE DIST FIX & NORMALIZATION
+    const dist = Math.sqrt(o.ox * o.ox + o.oy * o.oy + o.oz * o.oz);
+    const lengthRatio = Math.max(0.5, dist / 300);
+    const actualPtsCount = Math.floor(o.ptsCount * lengthRatio);
+    const bundleSpeed = PARTICLE_SPEED / lengthRatio;
+    
     const particles = [];
-    for (let i = 0; i < o.ptsCount; i++) {
+    for (let i = 0; i < actualPtsCount; i++) {
       particles.push({
-        t: i / o.ptsCount,
-        offX: sRandRange(-o.spread, o.spread),
-        offY: sRandRange(-o.spread, o.spread),
-        offZ: sRandRange(-o.spread, o.spread),
+        t: i / actualPtsCount,
+        offX: sRandRange(-o.spread, o.spread) * 0.5, // Tightened spread
+        offY: sRandRange(-o.spread, o.spread) * 0.5,
+        offZ: sRandRange(-o.spread, o.spread) * 0.5,
         size: sRandRange(0.6, 1),
         alpha: sRandRange(0.35, 0.8)
       });
     }
-    return { ox: o.ox, oy: o.oy, oz: o.oz, cp1x, cp1y, cp1z, cp2x, cp2y, cp2z, particles, originR: o.originR, baseAlpha: o.baseAlpha, densityMul: o.densityMul };
+    return { ox: o.ox, oy: o.oy, oz: o.oz, cp1x, cp1y, cp1z, cp2x, cp2y, cp2z, particles, originR: o.originR, baseAlpha: o.baseAlpha, densityMul: o.densityMul, bundleSpeed };
   });
 }
 
@@ -160,7 +166,7 @@ function animate() {
       allItems.push({ type: 'origin', x: originProj.sx, y: originProj.sy, r: b.originR * originProj.scale, z: originProj.z, scale: originProj.scale, densityMul: b.densityMul });
     }
     b.particles.forEach(p => {
-      p.t += PARTICLE_SPEED;
+      p.t += b.bundleSpeed;
       if (p.t > 1) p.t -= 1;
       const t = p.t;
       const squeeze = 1 - t * t;
@@ -182,7 +188,8 @@ function animate() {
         x: proj.sx, y: proj.sy, scale: proj.scale, z: proj.z,
         wx: pos.x, wy: pos.y, wz: pos.z,
         size: p.size * BASE_DOT_SIZE * proj.scale,
-        alpha: p.alpha * fade * b.densityMul
+        alpha: p.alpha * fade * b.densityMul,
+        offX: p.offX, offY: p.offY, offZ: p.offZ // stored for lateral distance calc
       });
     });
 
@@ -191,9 +198,18 @@ function animate() {
             const a = bundlePts[i], c = bundlePts[j];
             const dx = a.wx - c.wx, dy = a.wy - c.wy, dz = a.wz - c.wz;
             const dist3D = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            if (dist3D < CONNECT_DIST_3D * 1.2) {
+            
+            // LATERAL PENALTY LOGIC
+            const dOffX = a.offX - c.offX;
+            const dOffY = a.offY - c.offY;
+            const dOffZ = a.offZ - c.offZ;
+            const lateralDist = Math.sqrt(dOffX * dOffX + dOffY * dOffY + dOffZ * dOffZ);
+            
+            const effectiveDist = dist3D + lateralDist * 1.8; 
+            
+            if (effectiveDist < CONNECT_DIST_3D * 1.5) {
                 const avgScale = (a.scale + c.scale) / 2;
-                const lineAlpha = (1 - dist3D / (CONNECT_DIST_3D * 1.2)) * Math.min(a.alpha, c.alpha) * b.baseAlpha * LINE_ALPHA_MUL;
+                const lineAlpha = (1 - effectiveDist / (CONNECT_DIST_3D * 1.5)) * Math.min(a.alpha, c.alpha) * b.baseAlpha * LINE_ALPHA_MUL;
                 const thickness = BASE_LINE_W * avgScale;
                 allItems.push({ type: 'line', x1: a.x, y1: a.y, x2: c.x, y2: c.y, alpha: lineAlpha, z: (a.z + c.z) / 2, thickness });
                 lineCount++;
@@ -244,7 +260,7 @@ function animate() {
   });
 
   const rendered = totalPts - culledCount;
-  statsEl.textContent = 'Shape C: Streamline / Tentacle | rendered: ' + rendered + '/' + totalPts + ' | culled: ' + culledCount + ' | lines: ~' + lineCount;
+  statsEl.textContent = 'Shape C: V2 Normalized | rendered: ' + rendered + '/' + totalPts + ' | culled: ' + culledCount + ' | lines: ~' + lineCount;
   requestAnimationFrame(animate);
 }
 animate();

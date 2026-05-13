@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synapse Origin Generator</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        canvas {
+            display: block; width: 100%; height: 100%;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border: 1px solid #ddd;
+            z-index: 10;
+        }
+        .row { margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        .row:last-child { margin-bottom: 0; }
+        input[type="text"] {
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 150px;
+        }
+        button {
+            padding: 6px 12px;
+            background: #000;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        button:hover { background: #333; }
+        #code-output {
+            margin-top: 15px;
+            width: 300px;
+            height: 100px;
+            font-family: monospace;
+            font-size: 11px;
+            resize: vertical;
+        }
+        #saved-seeds {
+            margin-top: 15px;
+            max-height: 100px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 5px;
+            display: none;
+        }
+        .seed-item {
+            padding: 4px 8px;
+            background: #f4f4f4;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+        }
+        .seed-item:hover { background: #e0e0e0; }
+        .seed-item-delete { color: #888; font-weight: bold; }
+        .seed-item-delete:hover { color: red; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div class="row">
+            <label>Seed:</label>
+            <input type="text" id="seed-input" value="한나라">
+            <button id="btn-random">Random</button>
+        </div>
+        <div class="row">
+            <button id="btn-apply">Generate & Preview</button>
+            <button id="btn-save-seed" style="background: #444;">Save to Favorites</button>
+        </div>
+        <textarea id="code-output" readonly placeholder="ORIGINS array will appear here..."></textarea>
+        <div id="saved-seeds"></div>
+    </div>
+
+    <canvas id="bg-canvas"></canvas>
+
+    <script>
+        const FL = 350;
+        const SPHERE_R = 80;
+        const FADE_START = SPHERE_R + 50;
+        const ROT_Y = 0.4;
+        const ROT_X = 0.3;
+        const BASE_LINE_W = 0.48;
+        const BASE_DOT_SIZE = 0.7;
+        const CONNECT_DIST_3D = 50;
+        const LINE_ALPHA_MUL = 1.2;
+        const FADE_IN_T = 0.02; 
+        const ORIGIN_STROKE_RATIO = 0.01;
+        const ORIGIN_DOT_MUL = 1.2;
+        const PARTICLE_SPEED = 0.0002;
+
+        let activeBackground = null;
+
+        // 문자열 기반 해시 시드 생성
+        function generateOrigins(seedStr) {
+            let h = 0;
+            for(let i=0; i<seedStr.length; i++) {
+                h = Math.imul(31, h) + seedStr.charCodeAt(i) | 0;
+            }
+            let seed = h;
+            if(seed <= 0) seed += 2147483646;
+
+            function rnd() {
+                seed = (seed * 16807) % 2147483647; 
+                return (seed - 1) / 2147483646; 
+            }
+            function rndRange(a, b) { return a + rnd() * (b - a); }
+
+            const origins = [];
+            const numBundles = 36;
+            
+            for(let i=0; i<numBundles; i++) {
+                let ox, oy, oz, d;
+                // 중앙(Sphere) 부근에는 생성하지 않도록 필터링
+                do {
+                    ox = rndRange(-400, 400);
+                    oy = rndRange(-500, 500);
+                    oz = rndRange(-450, 350);
+                    d = Math.sqrt(ox*ox + oy*oy + oz*oz);
+                } while (d < 180);
+
+                origins.push({
+                    ox: parseFloat(ox.toFixed(1)),
+                    oy: parseFloat(oy.toFixed(1)),
+                    oz: parseFloat(oz.toFixed(1)),
+                    originR: parseFloat(rndRange(12, 26).toFixed(1)),
+                    cpDistRatio: parseFloat(rndRange(0.3, 0.6).toFixed(3)),
+                    cpJitterT: parseFloat(rndRange(-0.4, 0.4).toFixed(3)),
+                    cpJitterP: parseFloat(rndRange(-0.3, 0.3).toFixed(3)),
+                    spread: parseFloat(rndRange(17, 48).toFixed(1)),
+                    baseAlpha: parseFloat(rndRange(0.2, 0.4).toFixed(3)),
+                    densityMul: 2,
+                    ptsCount: 40
+                });
+            }
+            return origins;
+        }
+
+        class SynapseBackground {
+            constructor(canvasId, originsData) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.originsData = originsData;
+                
+                this.W = 0; this.H = 0; this.dpr = 1; this.viewScale = 1;
+                this.seed = 777;
+                this.bundles = this.buildBundles();
+                this.rafId = null;
+                
+                this.resize();
+                window.addEventListener('resize', this.resize.bind(this));
+                
+                this.animate();
+            }
+
+            destroy() {
+                if(this.rafId) cancelAnimationFrame(this.rafId);
+                window.removeEventListener('resize', this.resize);
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            }
+
+            resize() {
+                this.dpr = window.devicePixelRatio || 1;
+                this.W = window.innerWidth;
+                this.H = window.innerHeight;
+                this.viewScale = Math.min(2.0, 1 + (this.W - 300) / 1620);
+                this.canvas.width = this.W * this.dpr;
+                this.canvas.height = this.H * this.dpr;
+                this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+            }
+
+            sRand() { 
+                this.seed = (this.seed * 16807) % 2147483647; 
+                return (this.seed - 1) / 2147483646; 
+            }
+            sRandRange(a, b) { return a + this.sRand() * (b - a); }
+
+            project(x, y, z) {
+                const cr = Math.cos(ROT_Y), sr = Math.sin(ROT_Y);
+                const cx = Math.cos(ROT_X), sx = Math.sin(ROT_X);
+                let x1 = x * cr - z * sr;
+                let z1 = x * sr + z * cr;
+                let y1 = y * cx - z1 * sx;
+                let z2 = y * sx + z1 * cx;
+                const d = FL + z2;
+                if (d < 50) return null;
+                const scale = FL / d * this.viewScale;
+                const camFade = d < 150 ? (d - 50) / 100 : 1;
+                return { sx: this.W / 2 + x1 * scale, sy: this.H / 2 + y1 * scale, scale, z: z2, camFade };
+            }
+
+            buildBundles() {
+                this.seed = 777;
+                return this.originsData.map(o => {
+                    const vLen = Math.sqrt(o.ox * o.ox + o.oz * o.oz) || 1;
+                    const tx = -o.oz / vLen;
+                    const tz = o.ox / vLen;
+                    
+                    const cp1x = o.ox + tx * 80;
+                    const cp1y = o.oy;
+                    const cp1z = o.oz + tz * 80;
+                    
+                    const cp2x = o.ox * 0.2 + tx * 350;
+                    const cp2y = o.oy * 0.2;
+                    const cp2z = o.oz * 0.2 + tz * 350;
+                    
+                    const particles = [];
+                    for (let i = 0; i < o.ptsCount; i++) {
+                        particles.push({
+                            t: i / o.ptsCount,
+                            offX: this.sRandRange(-o.spread, o.spread),
+                            offY: this.sRandRange(-o.spread, o.spread),
+                            offZ: this.sRandRange(-o.spread, o.spread),
+                            size: this.sRandRange(0.6, 1),
+                            alpha: this.sRandRange(0.35, 0.8)
+                        });
+                    }
+                    return { ox: o.ox, oy: o.oy, oz: o.oz, cp1x, cp1y, cp1z, cp2x, cp2y, cp2z, particles, originR: o.originR, baseAlpha: o.baseAlpha, densityMul: o.densityMul };
+                });
+            }
+
+            cubicBezier3D(o, cp1, cp2, dest, t) {
+                const u = 1 - t;
+                const t2 = t * t;
+                const u2 = u * u;
+                const u3 = u2 * u;
+                const t3 = t2 * t;
+                return {
+                    x: u3 * o.x + 3 * u2 * t * cp1.x + 3 * u * t2 * cp2.x + t3 * dest.x,
+                    y: u3 * o.y + 3 * u2 * t * cp1.y + 3 * u * t2 * cp2.y + t3 * dest.y,
+                    z: u3 * o.z + 3 * u2 * t * cp1.z + 3 * u * t2 * cp2.z + t3 * dest.z
+                };
+            }
+
+            animate() {
+                this.ctx.clearRect(0, 0, this.W, this.H);
+                const allItems = [];
+
+                this.bundles.forEach(b => {
+                    const bundlePts = [];
+                    const originProj = this.project(b.ox, b.oy, b.oz);
+                    if (originProj) {
+                        allItems.push({ type: 'origin', x: originProj.sx, y: originProj.sy, r: b.originR * originProj.scale, z: originProj.z, scale: originProj.scale, densityMul: b.densityMul, camFade: originProj.camFade });
+                    }
+                    
+                    b.particles.forEach(p => {
+                        p.t += PARTICLE_SPEED;
+                        if (p.t > 1) p.t -= 1;
+                        const t = p.t;
+                        
+                        const squeeze = (1 - t * t) * Math.min(1, t * 15);
+                        const pos = this.cubicBezier3D(
+                            { x: b.ox + p.offX * squeeze, y: b.oy + p.offY * squeeze, z: b.oz + p.offZ * squeeze },
+                            { x: b.cp1x + p.offX * squeeze * 0.4, y: b.cp1y + p.offY * squeeze * 0.4, z: b.cp1z + p.offZ * squeeze * 0.4 },
+                            { x: b.cp2x + p.offX * squeeze * 0.1, y: b.cp2y + p.offY * squeeze * 0.1, z: b.cp2z + p.offZ * squeeze * 0.1 },
+                            { x: 0, y: 0, z: 0 },
+                            t
+                        );
+                        
+                        const distFromCenter = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z);
+                        if (distFromCenter < SPHERE_R) return;
+                        
+                        const proj = this.project(pos.x, pos.y, pos.z);
+                        if (!proj) return;
+                        
+                        const fadeIn = t < FADE_IN_T ? t / FADE_IN_T : 1;
+                        const sphereFade = distFromCenter < FADE_START ? (distFromCenter - SPHERE_R) / (FADE_START - SPHERE_R) : 1;
+                        const fade = fadeIn * sphereFade * proj.camFade;
+                        
+                        bundlePts.push({
+                            x: proj.sx, y: proj.sy, scale: proj.scale, z: proj.z,
+                            wx: pos.x, wy: pos.y, wz: pos.z,
+                            size: p.size * BASE_DOT_SIZE * proj.scale,
+                            alpha: p.alpha * fade * b.densityMul
+                        });
+                    });
+
+                    for (let i = 0; i < bundlePts.length; i++) {
+                        for (let j = i + 1; j < bundlePts.length; j++) {
+                            const a = bundlePts[i], c = bundlePts[j];
+                            const dx = a.wx - c.wx, dy = a.wy - c.wy, dz = a.wz - c.wz;
+                            const dist3D = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                            if (dist3D < CONNECT_DIST_3D * 1.2) {
+                                const avgScale = (a.scale + c.scale) / 2;
+                                const lineAlpha = (1 - dist3D / (CONNECT_DIST_3D * 1.2)) * Math.min(a.alpha, c.alpha) * b.baseAlpha * LINE_ALPHA_MUL;
+                                const thickness = BASE_LINE_W * avgScale;
+                                allItems.push({ type: 'line', x1: a.x, y1: a.y, x2: c.x, y2: c.y, alpha: lineAlpha, z: (a.z + c.z) / 2, thickness });
+                            }
+                        }
+                    }
+                    bundlePts.forEach(p => allItems.push({ type: 'dot', ...p }));
+                });
+
+                const sphereProj = this.project(0, 0, 0);
+                if (sphereProj) allItems.push({ type: 'sphere', z: 0, proj: sphereProj });
+
+                allItems.sort((a, b) => b.z - a.z);
+
+                allItems.forEach(item => {
+                    if (item.type === 'line') {
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(item.x1, item.y1);
+                        this.ctx.lineTo(item.x2, item.y2);
+                        this.ctx.strokeStyle = `rgba(0,0,0,${Math.min(item.alpha, 1)})`;
+                        this.ctx.lineWidth = item.thickness;
+                        this.ctx.stroke();
+                    } else if (item.type === 'dot') {
+                        this.ctx.beginPath();
+                        this.ctx.arc(item.x, item.y, item.size, 0, Math.PI * 2);
+                        this.ctx.fillStyle = `rgba(0,0,0,${Math.min(item.alpha, 1)})`;
+                        this.ctx.fill();
+                    } else if (item.type === 'origin') {
+                        const strokeW = item.r * ORIGIN_STROKE_RATIO;
+                        this.ctx.beginPath();
+                        this.ctx.arc(item.x, item.y, item.r, 0, Math.PI * 2);
+                        this.ctx.strokeStyle = item.densityMul === 2 ? '#000' : 'rgba(0,0,0,0.5)';
+                        this.ctx.lineWidth = Math.max(0.15, strokeW);
+                        this.ctx.stroke();
+                        
+                        const dotR = BASE_DOT_SIZE * item.scale * ORIGIN_DOT_MUL;
+                        this.ctx.beginPath();
+                        this.ctx.arc(item.x, item.y, dotR, 0, Math.PI * 2);
+                        this.ctx.fillStyle = item.densityMul === 2 ? '#000' : 'rgba(0,0,0,0.5)';
+                        this.ctx.fill();
+                    } else if (item.type === 'sphere') {
+                        const s = item.proj;
+                        const r = SPHERE_R * s.scale;
+                        this.ctx.beginPath();
+                        this.ctx.arc(s.sx, s.sy, r, 0, Math.PI * 2);
+                        this.ctx.fillStyle = '#000';
+                        this.ctx.fill();
+                    }
+                });
+
+                this.rafId = requestAnimationFrame(() => this.animate());
+            }
+        }
+
+        function run() {
+            const seedStr = document.getElementById('seed-input').value;
+            localStorage.setItem('synapse_last_seed', seedStr);
+            const newOrigins = generateOrigins(seedStr);
+            
+            // Format output for user
+            const strArr = newOrigins.map(o => JSON.stringify(o));
+            document.getElementById('code-output').value = "const ORIGINS = [\n  " + strArr.join(",\n  ") + "\n];";
+
+            if(activeBackground) {
+                activeBackground.destroy();
+            }
+            activeBackground = new SynapseBackground('bg-canvas', newOrigins);
+        }
+
+        function loadSavedSeeds() {
+            const container = document.getElementById('saved-seeds');
+            const saved = JSON.parse(localStorage.getItem('synapse_saved_seeds') || '[]');
+            if (saved.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+            container.style.display = 'block';
+            container.innerHTML = '<div style="font-size:11px; color:#666; margin-bottom:5px;">Favorite Seeds:</div>';
+            
+            saved.forEach((s, index) => {
+                const el = document.createElement('div');
+                el.className = 'seed-item';
+                
+                const textSpan = document.createElement('span');
+                textSpan.textContent = s;
+                textSpan.onclick = () => {
+                    document.getElementById('seed-input').value = s;
+                    run();
+                };
+                
+                const delSpan = document.createElement('span');
+                delSpan.textContent = '✕';
+                delSpan.className = 'seed-item-delete';
+                delSpan.onclick = (e) => {
+                    e.stopPropagation();
+                    saved.splice(index, 1);
+                    localStorage.setItem('synapse_saved_seeds', JSON.stringify(saved));
+                    loadSavedSeeds();
+                };
+                
+                el.appendChild(textSpan);
+                el.appendChild(delSpan);
+                container.appendChild(el);
+            });
+        }
+
+        document.getElementById('btn-random').addEventListener('click', () => {
+            document.getElementById('seed-input').value = Math.random().toString(36).substring(2, 8);
+            run();
+        });
+
+        document.getElementById('btn-apply').addEventListener('click', () => {
+            run();
+        });
+
+        document.getElementById('btn-save-seed').addEventListener('click', () => {
+            const currentSeed = document.getElementById('seed-input').value;
+            const saved = JSON.parse(localStorage.getItem('synapse_saved_seeds') || '[]');
+            if (!saved.includes(currentSeed)) {
+                saved.push(currentSeed);
+                localStorage.setItem('synapse_saved_seeds', JSON.stringify(saved));
+                loadSavedSeeds();
+            }
+        });
+
+        // Initialize
+        const lastSeed = localStorage.getItem('synapse_last_seed');
+        if (lastSeed) {
+            document.getElementById('seed-input').value = lastSeed;
+        }
+        loadSavedSeeds();
+        run();
+    </script>
+</body>
+</html>

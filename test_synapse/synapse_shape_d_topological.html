@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Synapse - Shape C (Streamline / Tentacle)</title>
+<title>Synapse - Shape D (Topological Streamline)</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; }
@@ -22,7 +22,6 @@ const ROT_Y = 0.4;
 const ROT_X = 0.3;
 const BASE_LINE_W = 0.48;
 const BASE_DOT_SIZE = 0.7;
-const CONNECT_DIST_3D = 50;
 const LINE_ALPHA_MUL = 1.2;
 const FADE_IN_T = 0.03;
 const ORIGIN_STROKE_RATIO = 0.01;
@@ -65,24 +64,7 @@ const ORIGINS = [
   {ox:56.8,oy:-298.1,oz:107.8,originR:24.4,cpDistRatio:0.399,cpJitterT:0.287,cpJitterP:0.108,spread:18.6,baseAlpha:0.394,densityMul:1,ptsCount:20},
   {ox:-87.2,oy:-411.5,oz:-94.3,originR:23.4,cpDistRatio:0.462,cpJitterT:-0.019,cpJitterP:0.103,spread:42.3,baseAlpha:0.382,densityMul:1,ptsCount:20},
   {ox:38.8,oy:-515.7,oz:-7.3,originR:24.2,cpDistRatio:0.332,cpJitterT:-0.155,cpJitterP:0.117,spread:28.8,baseAlpha:0.297,densityMul:1,ptsCount:20},
-  {ox:-69.5,oy:-196,oz:17.4,originR:15.7,cpDistRatio:0.303,cpJitterT:0.131,cpJitterP:0.205,spread:46.4,baseAlpha:0.36,densityMul:1,ptsCount:20}
 ];
-
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-const statsEl = document.getElementById('stats');
-let W, H, dpr, viewScale;
-
-function resize() {
-  dpr = window.devicePixelRatio || 1;
-  W = window.innerWidth;
-  H = window.innerHeight;
-  viewScale = Math.min(2.0, 1 + (W - 300) / 1620);
-  canvas.width = W * dpr;
-  canvas.height = H * dpr;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-}
-resize();
 
 let seed = 777;
 function sRand() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
@@ -104,28 +86,39 @@ function project(x, y, z) {
 function buildBundles() {
   seed = 777;
   return ORIGINS.map(o => {
+    // We generate TWO control points for a Cubic Bezier to create an S-curve (Tentacle shape)
+    // Shift them heavily towards a global "wind" direction
     const windScale = 0.8;
     
+    // CP1: Blow outwards from the origin but shift with current
     const cp1x = o.ox * 1.5 + 200 * windScale;
     const cp1y = o.oy - 100 * windScale;
     const cp1z = o.oz * 1.5 + 150 * windScale;
     
+    // CP2: Hook underneath and pull back against the current before hitting center
     const cp2x = -250 * windScale;
     const cp2y = 150 * windScale;
     const cp2z = -150 * windScale;
     
+    // NORMALIZE PHYSICAL DENSITY AND SPEED
+    const dist = Math.sqrt(o.ox * o.ox + o.oy * o.oy + o.oz * o.oz);
+    const lengthRatio = dist / 300;
+    const actualPtsCount = Math.floor(o.ptsCount * lengthRatio);
+    const bundleSpeed = PARTICLE_SPEED / lengthRatio;
+    
     const particles = [];
-    for (let i = 0; i < o.ptsCount; i++) {
+    for (let i = 0; i < actualPtsCount; i++) {
       particles.push({
-        t: i / o.ptsCount,
-        offX: sRandRange(-o.spread, o.spread),
-        offY: sRandRange(-o.spread, o.spread),
-        offZ: sRandRange(-o.spread, o.spread),
+        t: i / actualPtsCount,
+        offX: sRandRange(-o.spread, o.spread) * 0.5,
+        offY: sRandRange(-o.spread, o.spread) * 0.5,
+        offZ: sRandRange(-o.spread, o.spread) * 0.5,
         size: sRandRange(0.6, 1),
         alpha: sRandRange(0.35, 0.8)
       });
     }
-    return { ox: o.ox, oy: o.oy, oz: o.oz, cp1x, cp1y, cp1z, cp2x, cp2y, cp2z, particles, originR: o.originR, baseAlpha: o.baseAlpha, densityMul: o.densityMul };
+    
+    return { ox: o.ox, oy: o.oy, oz: o.oz, cp1x, cp1y, cp1z, cp2x, cp2y, cp2z, particles, originR: o.originR, baseAlpha: o.baseAlpha, densityMul: o.densityMul, bundleSpeed };
   });
 }
 
@@ -151,7 +144,7 @@ function animate() {
   lineCount = 0; culledCount = 0;
   let totalPts = 0;
   const allItems = [];
-
+  
   bundles.forEach(b => {
     const bundlePts = [];
     totalPts += b.particles.length;
@@ -159,47 +152,112 @@ function animate() {
     if (originProj) {
       allItems.push({ type: 'origin', x: originProj.sx, y: originProj.sy, r: b.originR * originProj.scale, z: originProj.z, scale: originProj.scale, densityMul: b.densityMul });
     }
+    
     b.particles.forEach(p => {
-      p.t += PARTICLE_SPEED;
+      p.t += b.bundleSpeed;
       if (p.t > 1) p.t -= 1;
       const t = p.t;
-      const squeeze = 1 - t * t;
-      const pos = cubicBezier3D(
-        { x: b.ox + p.offX * squeeze, y: b.oy + p.offY * squeeze, z: b.oz + p.offZ * squeeze },
-        { x: b.cp1x + p.offX * squeeze * 0.4, y: b.cp1y + p.offY * squeeze * 0.4, z: b.cp1z + p.offZ * squeeze * 0.4 },
-        { x: b.cp2x + p.offX * squeeze * 0.1, y: b.cp2y + p.offY * squeeze * 0.1, z: b.cp2z + p.offZ * squeeze * 0.1 },
-        { x: 0, y: 0, z: 0 },
-        t
-      );
+      
+      const getPos = (tVal) => {
+        const squeeze = 1 - tVal * tVal;
+        const basePos = cubicBezier3D(
+          { x: b.ox, y: b.oy, z: b.oz },
+          { x: b.cp1x, y: b.cp1y, z: b.cp1z },
+          { x: b.cp2x, y: b.cp2y, z: b.cp2z },
+          { x: 0, y: 0, z: 0 },
+          tVal
+        );
+        return {
+          x: basePos.x + p.offX * squeeze,
+          y: basePos.y + p.offY * squeeze,
+          z: basePos.z + p.offZ * squeeze
+        };
+      };
+
+      const pos = getPos(t);
       const distFromCenter = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z);
       if (distFromCenter < SPHERE_R) { culledCount++; return; }
       const proj = project(pos.x, pos.y, pos.z);
       if (!proj) return;
+      
       const fadeIn = t < FADE_IN_T ? t / FADE_IN_T : 1;
       const sphereFade = distFromCenter < FADE_START ? (distFromCenter - SPHERE_R) / (FADE_START - SPHERE_R) : 1;
       const fade = fadeIn * sphereFade;
+      
+      const dotScaleBoost = proj.scale < 1.0 ? Math.pow(1.0 / proj.scale, 0.5) : 1.0;
+      
       bundlePts.push({
         x: proj.sx, y: proj.sy, scale: proj.scale, z: proj.z,
-        wx: pos.x, wy: pos.y, wz: pos.z,
-        size: p.size * BASE_DOT_SIZE * proj.scale,
-        alpha: p.alpha * fade * b.densityMul
+        t: t, // Keep progress t for topological sorting
+        size: Math.max(0.5, p.size * BASE_DOT_SIZE * proj.scale),
+        alpha: Math.min(1.0, p.alpha * fade * b.densityMul * dotScaleBoost),
+        offX: p.offX, offY: p.offY, offZ: p.offZ
       });
     });
 
+    // --- TOPOLOGICAL CONNECTION LOGIC ---
+    
+    // 1. Sort particles by progress 't' (0 to 1) to establish topological sequence
+    bundlePts.sort((a, b) => a.t - b.t);
+
+    // 2. Connect only to forward neighbors in the sorted array
+    const LOOKAHEAD = 6; // How many particles ahead to check
+    const LATERAL_THRESH = 22; // Maximum lateral distance to connect (creates woven texture)
+
     for (let i = 0; i < bundlePts.length; i++) {
-        for (let j = i + 1; j < bundlePts.length; j++) {
-            const a = bundlePts[i], c = bundlePts[j];
-            const dx = a.wx - c.wx, dy = a.wy - c.wy, dz = a.wz - c.wz;
-            const dist3D = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            if (dist3D < CONNECT_DIST_3D * 1.2) {
+        const a = bundlePts[i];
+        let connected = 0;
+
+        for (let j = 1; j <= LOOKAHEAD && i + j < bundlePts.length; j++) {
+            const c = bundlePts[i + j];
+            
+            // Prevent connecting across huge gaps (e.g., if particles in between were culled)
+            if (c.t - a.t > 0.15) continue;
+
+            // Calculate lateral difference (side-to-side distance off the main spine)
+            const dOffX = a.offX - c.offX;
+            const dOffY = a.offY - c.offY;
+            const dOffZ = a.offZ - c.offZ;
+            const lateralDist = Math.sqrt(dOffX * dOffX + dOffY * dOffY + dOffZ * dOffZ);
+            
+            // Only connect if they are laterally similar -> forms woven strands instead of messy tangles
+            if (lateralDist < LATERAL_THRESH) {
                 const avgScale = (a.scale + c.scale) / 2;
-                const lineAlpha = (1 - dist3D / (CONNECT_DIST_3D * 1.2)) * Math.min(a.alpha, c.alpha) * b.baseAlpha * LINE_ALPHA_MUL;
-                const thickness = BASE_LINE_W * avgScale;
+                const scaleBoost = avgScale < 1.0 ? (1.0 / avgScale) : 1.0;
+                
+                // Connection strength based on how close they are topologically and laterally
+                const topoFactor = 1.0 - (j / (LOOKAHEAD + 1));
+                const lateralFactor = 1.0 - (lateralDist / LATERAL_THRESH);
+                const connectionStrength = topoFactor * 0.7 + lateralFactor * 0.3;
+                
+                let lineAlpha = connectionStrength * Math.min(a.alpha, c.alpha) * b.baseAlpha * LINE_ALPHA_MUL * scaleBoost;
+                lineAlpha = Math.min(1.0, lineAlpha); 
+                
+                const thickness = Math.max(0.4, BASE_LINE_W * avgScale);
+                
+                allItems.push({ type: 'line', x1: a.x, y1: a.y, x2: c.x, y2: c.y, alpha: lineAlpha, z: (a.z + c.z) / 2, thickness });
+                lineCount++;
+                connected++;
+            }
+        }
+        
+        // Fallback: If no woven connections were found, unconditionally connect to the immediate next particle
+        // to ensure the strand doesn't physically break, assuming it's not too far ahead.
+        if (connected === 0 && i + 1 < bundlePts.length) {
+            const c = bundlePts[i + 1];
+            if (c.t - a.t <= 0.15) {
+                const avgScale = (a.scale + c.scale) / 2;
+                const scaleBoost = avgScale < 1.0 ? (1.0 / avgScale) : 1.0;
+                let lineAlpha = 0.4 * Math.min(a.alpha, c.alpha) * b.baseAlpha * LINE_ALPHA_MUL * scaleBoost;
+                lineAlpha = Math.min(1.0, lineAlpha);
+                const thickness = Math.max(0.4, BASE_LINE_W * avgScale);
                 allItems.push({ type: 'line', x1: a.x, y1: a.y, x2: c.x, y2: c.y, alpha: lineAlpha, z: (a.z + c.z) / 2, thickness });
                 lineCount++;
             }
         }
     }
+    
+    // Finally, push dots
     bundlePts.forEach(p => allItems.push({ type: 'dot', ...p }));
   });
 
@@ -213,42 +271,54 @@ function animate() {
       ctx.beginPath();
       ctx.moveTo(item.x1, item.y1);
       ctx.lineTo(item.x2, item.y2);
-      ctx.strokeStyle = `rgba(0,0,0,${Math.min(item.alpha, 1)})`;
+      ctx.strokeStyle = `rgba(0,0,0,${item.alpha})`;
       ctx.lineWidth = item.thickness;
       ctx.stroke();
     } else if (item.type === 'dot') {
       ctx.beginPath();
       ctx.arc(item.x, item.y, item.size, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(0,0,0,${Math.min(item.alpha, 1)})`;
+      ctx.fillStyle = `rgba(0,0,0,${item.alpha})`;
       ctx.fill();
     } else if (item.type === 'origin') {
-      const strokeW = item.r * ORIGIN_STROKE_RATIO;
       ctx.beginPath();
       ctx.arc(item.x, item.y, item.r, 0, Math.PI * 2);
-      ctx.strokeStyle = item.densityMul === 2 ? '#000' : 'rgba(0,0,0,0.5)';
-      ctx.lineWidth = Math.max(0.15, strokeW);
+      ctx.fillStyle = `rgba(0,0,0,${item.densityMul * 0.05})`;
+      ctx.fill();
+      ctx.lineWidth = item.scale * ORIGIN_STROKE_RATIO * 50;
+      ctx.strokeStyle = `rgba(0,0,0,${item.densityMul * 0.15})`;
       ctx.stroke();
-      const dotR = BASE_DOT_SIZE * item.scale * ORIGIN_DOT_MUL;
       ctx.beginPath();
-      ctx.arc(item.x, item.y, dotR, 0, Math.PI * 2);
-      ctx.fillStyle = item.densityMul === 2 ? '#000' : 'rgba(0,0,0,0.5)';
+      ctx.arc(item.x, item.y, item.r * 0.15, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(0,0,0,${item.densityMul * 0.8})`;
       ctx.fill();
     } else if (item.type === 'sphere') {
-      const s = item.proj;
-      const r = SPHERE_R * s.scale;
       ctx.beginPath();
-      ctx.arc(s.sx, s.sy, r, 0, Math.PI * 2);
+      ctx.arc(item.proj.sx, item.proj.sy, SPHERE_R * item.proj.scale, 0, Math.PI * 2);
       ctx.fillStyle = '#000';
       ctx.fill();
     }
   });
 
-  const rendered = totalPts - culledCount;
-  statsEl.textContent = 'Shape C: Streamline / Tentacle | rendered: ' + rendered + '/' + totalPts + ' | culled: ' + culledCount + ' | lines: ~' + lineCount;
+  ctx.fillStyle = '#000';
+  ctx.fillText(`PTS: ${totalPts - culledCount}/${totalPts} LINES: ${lineCount}`, 0, 0);
+  
   requestAnimationFrame(animate);
 }
-animate();
-window.addEventListener('resize', resize);
+
+let canvas, ctx, W, H, viewScale;
+function init() {
+  canvas = document.getElementById('c');
+  ctx = canvas.getContext('2d');
+  const resize = () => {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    viewScale = Math.min(W, H) / 900;
+  };
+  window.addEventListener('resize', resize);
+  resize();
+  animate();
+}
+window.onload = init;
 </script>
 </body>
 </html>

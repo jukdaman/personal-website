@@ -1,0 +1,252 @@
+/* work.css */
+
+/* --- Pinterest 스타일 Masonry (WORK 메뉴) --- */
+.masonry-grid {
+  /* 기본 모바일/매우 좁은 창 설정 */
+  column-count: 1;
+  column-gap: 16px;
+  width: 100%;
+}
+
+.masonry-item {
+  break-inside: avoid;
+  margin-bottom: 24px;
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: #333;
+  /* 로딩 전 스켈레톤 컬러 */
+  position: relative;
+  cursor: pointer;
+  /* Hover 해제 시(Mouse Leave) 즉시 그림자가 사라지도록 트랜지션 제거 (0s) */
+  transition: box-shadow 0s ease-out;
+}
+
+.masonry-item:hover {
+  /* JS가 캔버스 1x1로 추출한 평균 색상 변수를 그림자에 주입. 로딩 실패 시 rgba 폴백 사용 */
+  box-shadow: 0 10px 30px var(--shadow-color, rgba(0, 0, 0, 0.4));
+  /* Hover 진입 시(Mouse Enter) 은은하게 그림자가 번지도록 트랜지션 부여 (0.3s) */
+  transition: box-shadow 0.3s ease;
+}
+
+/* 이미지가 아직 로딩되지 않았을 때만 정방형 비율 유지. 로딩 완료 시 자연스러운 높이로 복귀 */
+.masonry-item:not(.is-loaded) {
+  aspect-ratio: 1 / 1;
+}
+
+/* 로딩 스피너 (이미지 뒤 쪽에 배치됨) */
+.masonry-item::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  border: 2px solid #ccc;
+  border-top-color: #555;
+  border-radius: 50%;
+  animation: masonrySpin 0.8s linear infinite;
+  z-index: 0;
+}
+
+@keyframes masonrySpin {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+.masonry-item img {
+  position: relative;
+  z-index: 1;
+  /* 렌더링되면서 스피너를 덮음 */
+  width: 100%;
+  height: auto;
+  display: block;
+  transition: filter 0.2s ease;
+}
+
+/* 활성화 상태 (창 열림) */
+.masonry-item.is-active img {
+  filter: brightness(0.4);
+  /* 확성 시 더 어둡게 */
+}
+
+.masonry-item.is-active::after {
+  content: "✕";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(224, 224, 224, 0.8);
+  font-size: 40px;
+  font-weight: 800;
+  pointer-events: none;
+  /* X 아이콘이 클릭을 방해하지 않도록 */
+  z-index: 2;
+  /* 이미지(z-index: 1)보다 항상 위에 표시되도록! */
+}
+
+/* 창 너비가 400px 이상일 때 (2열) */
+@container window-panel (min-width: 300px) {
+  .masonry-grid {
+    column-count: 2;
+  }
+}
+
+/* 창 너비가 700px 이상일 때 (3열) */
+@container window-panel (min-width: 600px) {
+  .masonry-grid {
+    column-count: 3;
+  }
+}
+
+/* 창 너비가 1000px 이상일 때 (4열) */
+@container window-panel (min-width: 900px) {
+  .masonry-grid {
+    column-count: 4;
+  }
+}
+
+/* 창 너비가 1300px 이상일 때 (5열) */
+@container window-panel (min-width: 1200px) {
+  .masonry-grid {
+    column-count: 5;
+  }
+}
+
+/* 창 너비가 1600px 이상일 때 (6열) */
+@container window-panel (min-width: 1500px) {
+  .masonry-grid {
+    column-count: 6;
+  }
+}
+
+/* --- Image Viewer (2차 창) --- */
+/* .image-viewer 클래스는 window-content-area에 동적으로 추가됨 */
+
+.image-viewer-viewport {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  display: flex;
+  overscroll-behavior: contain;
+}
+
+
+
+.image-viewer-img {
+  display: block;
+  transition: transform 0.2s ease, width 0.2s ease, height 0.2s ease;
+  transform-origin: center center;
+  /* 이미지가 뷰포트보다 작을 땐 상하좌우 중앙을 유지하고, 커질 땐 자연스럽게 top-left로 앵커링되어 100% 스크롤 영역을 확보해주는 마법의 속성 */
+  margin: auto;
+}
+
+.image-viewer-img.mode-contain {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
+  transition: none;
+}
+
+.image-viewer-controls {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 8px;
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 10;
+}
+
+.iv-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.2s;
+  padding: 0;
+}
+
+.iv-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.iv-btn.is-active {
+  background: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.image-viewer-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0) 100%);
+  padding: 60px 24px 24px 24px;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.image-viewer:hover .image-viewer-footer {
+  opacity: 1;
+}
+
+/* 스크롤바 썸에 호버/드래그 중일 때는 footer를 숨김 (스크롤바 조작 시 시야 방해 방지) */
+.image-viewer:has(.custom-scrollbar-thumb:hover) .image-viewer-footer,
+.image-viewer:has(.custom-scrollbar-thumb.is-dragging) .image-viewer-footer {
+  opacity: 0 !important;
+  transition: opacity 0.15s ease;
+}
+
+.img-desc-content {
+  transform: translateY(10px);
+  transition: transform 0.3s ease;
+  color: #fff;
+  pointer-events: auto;
+  /* Allow selecting text */
+}
+
+.image-viewer:hover .img-desc-content {
+  transform: translateY(0);
+}
+
+.image-viewer:has(.custom-scrollbar-thumb:hover) .img-desc-content,
+.image-viewer:has(.custom-scrollbar-thumb.is-dragging) .img-desc-content {
+  transform: translateY(10px) !important;
+}
+
+.desc-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  letter-spacing: -0.5px;
+}
+
+.desc-caption {
+  font-size: 14px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.4;
+}

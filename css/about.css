@@ -1,0 +1,345 @@
+/* about.css */
+
+/* --- About Page (Dark Theme Renewal) --- */
+.about-page.dark-theme {
+  max-width: 600px;
+  margin: 0 auto;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  padding: 40px 20px;
+}
+
+/* 1. Header (Avatar + Name & Contact) */
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 50px;
+}
+
+.profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.profile-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: #fff;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.profile-titles {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.profile-titles .name {
+  font-family: 'Paperlogy', 'Pretendard', sans-serif;
+  font-size: 64px;
+  font-weight: 600;
+  letter-spacing: -2px;
+  margin: 0;
+  line-height: 1;
+  color: #fff;
+}
+
+.profile-titles .handle {
+  font-family: 'Paperlogy', 'Pretendard', sans-serif;
+  font-size: 20px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: -0.5px;
+  margin: 0;
+  margin-top: 2px;
+}
+
+/* Contact Info (Right side) */
+.contact-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  font-family: 'Paperlogy', 'Pretendard', sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.contact-icon {
+  width: 16px;
+  aspect-ratio: 1 / 1;
+  flex-shrink: 0;
+}
+
+.info-row span {
+  font-size: 13px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 1);
+}
+
+/* 2. Job Roles */
+.job-roles {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 80px;
+}
+
+.job-roles p {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 300;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.job-roles p .mobile-break {
+  display: none;
+}
+
+/* 3. Section Structures (Skills & Profile) */
+.section-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  margin-bottom: 100px;
+}
+
+.huge-title {
+  font-family: 'Paperlogy', 'Pretendard', sans-serif;
+  font-size: 128px;
+  font-weight: 600;
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.4);
+  margin: 0;
+  line-height: 0.85;
+  letter-spacing: -4px;
+}
+
+.section-divider {
+  width: 100%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
+  margin-top: 10px;
+  margin-bottom: 24px;
+}
+
+/* Skills Section Specifics */
+.skills-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 30px;
+}
+
+.skill-icon {
+  position: relative;
+  width: 50px;
+  aspect-ratio: 1 / 1;
+  cursor: pointer;
+  transition: filter 0.3s ease;
+}
+
+.skill-icon:hover {
+  /* SVG 형태를 그대로 따라가는 드롭섀도우(글로우) 아웃라인 효과 */
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.8));
+}
+
+.skill-icon::before,
+.skill-icon::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  transition: opacity 0.3s ease;
+}
+
+.skill-icon::before {
+  /* 아웃라인 아이콘 (기본) */
+  opacity: 1;
+}
+
+.skill-icon::after {
+  /* 컬러 아이콘 (호버 시) */
+  opacity: 0;
+}
+
+.skill-icon:hover::before {
+  opacity: 0;
+}
+
+.skill-icon:hover::after {
+  opacity: 1;
+}
+
+/* 각 아이콘별 배경 이미지 설정 */
+.skill-icon.figma::before {
+  background-image: url('../images/about/logo-figma-outline.svg');
+}
+
+.skill-icon.figma::after {
+  background-image: url('../images/about/logo-figma-color.svg');
+}
+
+.skill-icon.illustrator::before {
+  background-image: url('../images/about/logo-illustrator-outline.svg');
+}
+
+.skill-icon.illustrator::after {
+  background-image: url('../images/about/logo-illustrator-color.svg');
+}
+
+.skill-icon.photoshop::before {
+  background-image: url('../images/about/logo-photoshop-outline.svg');
+}
+
+.skill-icon.photoshop::after {
+  background-image: url('../images/about/logo-photoshop-color.svg');
+}
+
+.skill-icon.clipstudiopaint::before {
+  background-image: url('../images/about/logo-clipstudiopaint-outline.svg');
+}
+
+.skill-icon.clipstudiopaint::after {
+  background-image: url('../images/about/logo-clipstudiopaint-color.svg');
+}
+
+.skill-icon.vscode::before {
+  background-image: url('../images/about/logo-vscode-outline.svg');
+}
+
+.skill-icon.vscode::after {
+  background-image: url('../images/about/logo-vscode-color.svg');
+}
+
+.skill-icon.claude::before {
+  background-image: url('../images/about/logo-claude-outline.svg');
+}
+
+.skill-icon.claude::after {
+  background-image: url('../images/about/logo-claude-color.svg');
+}
+
+.skill-icon.github::before {
+  background-image: url('../images/about/logo-github-outline.svg');
+}
+
+.skill-icon.github::after {
+  background-image: url('../images/about/logo-github-color.svg');
+}
+
+/* Profile Section Specifics */
+.profile-icons-grid {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 30px;
+}
+
+.profile-icon {
+  position: relative;
+  width: 60px;
+  height: 40px;
+  cursor: pointer;
+}
+
+.profile-icon::before,
+.profile-icon::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  transition: opacity 0.3s ease;
+}
+
+.profile-icon::before {
+  opacity: 0.8;
+  /* Base opacity as requested previously */
+}
+
+.profile-icon::after {
+  opacity: 0;
+}
+
+.profile-icon:hover::before {
+  opacity: 0;
+}
+
+.profile-icon:hover::after {
+  opacity: 1;
+}
+
+.profile-icon.hangangmedia::before {
+  background-image: url('../images/about/logo-hangangmedia-outline.svg');
+}
+
+.profile-icon.hangangmedia::after {
+  background-image: url('../images/about/logo-hangangmedia-color.svg');
+}
+
+.profile-icon.chungkang::before {
+  background-image: url('../images/about/logo-chungkang-outline.svg');
+}
+
+.profile-icon.chungkang::after {
+  background-image: url('../images/about/logo-chungkang-color.svg');
+}
+
+/* Common Lists (Ability & History) */
+.ability-list,
+.history-list {
+  list-style: disc;
+  padding: 0;
+  margin: 0;
+  padding-left: 16px;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 2.2;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: -0.3px;
+}
+
+/* --- Container Queries (<= 425px) --- */
+@container window-panel (max-width: 500px) {
+  .profile-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 24px;
+  }
+
+  .huge-title {
+    font-size: 64px;
+  }
+
+  .job-roles p .separator {
+    display: none;
+  }
+
+  .job-roles p .mobile-break {
+    display: block;
+  }
+}
