@@ -1,6 +1,6 @@
-# JUK Portfolio OS - TODO & State
+# 🔄 activeContext (Working Memory & Next Steps)
 
-이 파일은 AI와의 세션이 종료된 후에도 작업 현황을 보존하여 다음 세션에서 끊김 없이 작업을 이어가기 위해 작성되었습니다.
+이 파일은 현재 개발 진척도와 당면 과제를 기록하는 단기 기억 장소(Working Memory)입니다.
 
 ## ✅ Completed (현재까지 완료된 사항)
 - **Architecture**: 순수 HTML/CSS/JS (Vanilla) 기반 프로젝트 셋업.
@@ -37,12 +37,10 @@
   - 단, 화면 상에서 완전히 독립된(겹치지 않은) 창을 조작할 때는 딜레이 없이 100% 즉시 동작(Fast-Forward)하도록 유예 우회 로직 적용.
 - **Smart Window Placement**: 창 새롭게 등장 시 화면을 40px 단위로 스캔하여 기존 창과 가장 적게 겹치고 중앙에 가까운 빈 공간(AABB)을 스스로 찾아 스폰하는 스마트 배치 알고리즘 추가.
 - **State Synchronization**: 2차 창 단독 종료 시 연동된 갤러리 썸네일의 'is-active(활성 딤)' 상태가 즉각 해제되도록 `windowClosed` 커스텀 이벤트 파이프라인 연결.
+- **AI Harness Refactoring**: AI의 컨텍스트를 분리하는 JIT Harness 시스템 및 Antigravity KI 도입 완료.
 
 ## 🔜 Next Steps (다음 세션에서 해야 할 일)
 - [ ] **배경 애니메이션 적용**: `js/background.js`에 캔버스를 활용한 인터랙티브 백그라운드 적용 (사용자 제공 시안 기반).
 - [ ] **나머지 1차 창 디자인 마무리**: ABOUT, CAREERS, CONTACT 내부 텍스트 밀도와 디자인 다듬기.
 - [ ] **2차 창 상세 컴포넌트 채우기**: WORK 썸네일 클릭 시 나타나는 2차 상세 창의 레이아웃/데이터 연동 작업 마무리.
 - [ ] **인트로 시퀀스(Optional)**: 디자인 확정 시 초기 로딩 후 나타나는 커스텀 인트로 연출 작업.
-
-## 📌 Note for AI
-AI 에이전트는 다음 세션 시작 시 이 `TODO.md` 파일과 `.agents/workflows/context.md` 문서를 우선적으로 읽고 컨텍스트를 파악한 뒤 작업을 이어가야 합니다.

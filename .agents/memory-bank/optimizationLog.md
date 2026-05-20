@@ -1,6 +1,10 @@
-# Synapse Animation Refactoring & Optimization
+# 🚀 optimizationLog (Tuning & Refactoring History)
 
-## 1. 개요 (Overview)
+이 문서는 프로젝트 전반의 성능 최적화, 렌더링 튜닝, 그리고 주요 리팩토링 내역을 시간순으로 기록하는 저장소입니다.
+
+## 📌 [2026-05] Synapse Animation Refactoring & Optimization
+
+### 1. 개요 (Overview)
 Synapse 배경 애니메이션의 성능 저하(Stuttering) 및 메모리 가비지 컬렉션(GC) 압력 문제를 해결하고, 데이터 구조를 모듈화하여 유지보수성을 극대화하기 위한 리팩토링 및 최적화 작업을 진행했습니다.
 
 ## 2. 주요 변경 사항 (Key Changes)
