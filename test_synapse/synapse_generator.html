@@ -58,6 +58,41 @@
             padding: 5px;
             display: none;
         }
+        #bundle-list {
+            margin-top: 15px;
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 5px;
+            font-size: 11px;
+            background: #fafafa;
+        }
+        .bundle-item {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .bundle-item:last-child { border-bottom: none; }
+        .bundle-item .header { width: 100%; display: flex; justify-content: space-between; align-items: center; }
+        .bundle-item button.del-btn {
+            background: #d44; padding: 1px 4px; font-size: 9px;
+        }
+        .bundle-item button.del-btn:hover { background: #c33; }
+        .bundle-item button.hide-btn {
+            background: #888; padding: 1px 4px; font-size: 9px; margin-right: 4px;
+        }
+        .bundle-item button.hide-btn:hover { background: #666; }
+        .coords-edit {
+            width: 100%; display: flex; gap: 4px; margin-top: 4px;
+        }
+        .coords-edit label { display: flex; align-items: center; gap: 2px; color: #555; font-size: 9px; }
+        .coords-edit input {
+            width: 50px; padding: 1px; font-size: 12px; border: 1px solid #ccc; border-radius: 2px;
+        }
         .seed-item {
             padding: 4px 8px;
             background: #f4f4f4;
@@ -75,17 +110,21 @@
 </head>
 <body>
     <div id="ui">
-        <div class="row">
-            <label>Seed:</label>
-            <input type="text" id="seed-input" value="한나라">
-            <button id="btn-random">Random</button>
+        <button id="btn-toggle-ui" style="width: 100%; margin-bottom: 10px; background: #666; font-size: 11px; padding: 4px;">Hide UI</button>
+        <div id="ui-content">
+            <div class="row">
+                <label>Seed:</label>
+                <input type="text" id="seed-input" value="pfin6m">
+                <button id="btn-random">Random</button>
+            </div>
+            <div class="row">
+                <button id="btn-apply">Generate & Preview</button>
+                <button id="btn-save-seed" style="background: #444;">Save Layout</button>
+            </div>
+            <textarea id="code-output" readonly placeholder="ORIGINS array will appear here..."></textarea>
+            <div id="bundle-list"></div>
+            <div id="saved-seeds"></div>
         </div>
-        <div class="row">
-            <button id="btn-apply">Generate & Preview</button>
-            <button id="btn-save-seed" style="background: #444;">Save to Favorites</button>
-        </div>
-        <textarea id="code-output" readonly placeholder="ORIGINS array will appear here..."></textarea>
-        <div id="saved-seeds"></div>
     </div>
 
     <canvas id="bg-canvas"></canvas>
@@ -93,19 +132,28 @@
     <script>
         const FL = 350;
         const SPHERE_R = 80;
+        const SPHERE_R_SQ = SPHERE_R * SPHERE_R;
         const FADE_START = SPHERE_R + 50;
         const ROT_Y = 0.4;
         const ROT_X = 0.3;
         const BASE_LINE_W = 0.48;
         const BASE_DOT_SIZE = 0.7;
         const CONNECT_DIST_3D = 50;
+        const CONNECT_THRESH = CONNECT_DIST_3D * 1.2;
+        const CONNECT_THRESH_SQ = CONNECT_THRESH * CONNECT_THRESH;
         const LINE_ALPHA_MUL = 1.2;
         const FADE_IN_T = 0.02; 
         const ORIGIN_STROKE_RATIO = 0.01;
         const ORIGIN_DOT_MUL = 1.2;
         const PARTICLE_SPEED = 0.0002;
+        const MIN_ALPHA_FOR_LINE = 0.05;
+        const TWO_PI = Math.PI * 2;
+        
+        const COS_RY = Math.cos(ROT_Y), SIN_RY = Math.sin(ROT_Y);
+        const COS_RX = Math.cos(ROT_X), SIN_RX = Math.sin(ROT_X);
 
         let activeBackground = null;
+        let currentOrigins = [];
 
         // 문자열 기반 해시 시드 생성
         function generateOrigins(seedStr) {
@@ -136,6 +184,7 @@
                 } while (d < 180);
 
                 origins.push({
+                    id: 'B' + i,
                     ox: parseFloat(ox.toFixed(1)),
                     oy: parseFloat(oy.toFixed(1)),
                     oz: parseFloat(oz.toFixed(1)),
@@ -146,7 +195,7 @@
                     spread: parseFloat(rndRange(17, 48).toFixed(1)),
                     baseAlpha: parseFloat(rndRange(0.2, 0.4).toFixed(3)),
                     densityMul: 2,
-                    ptsCount: 40
+                    ptsCount: 50
                 });
             }
             return origins;
@@ -160,9 +209,17 @@
                 
                 this.W = 0; this.H = 0; this.dpr = 1; this.viewScale = 1;
                 this.seed = 777;
-                this.bundles = this.buildBundles();
-                this.rafId = null;
                 
+                // 재사용 오브젝트 풀
+                this._pos = {x:0, y:0, z:0};
+                this._proj = {sx:0, sy:0, scale:0, z:0, camFade:0, depthFade:0, valid:false};
+                
+                this.bundles = this.buildBundles();
+                
+                this.rafId = null;
+                this.isVisible = true; // Generator doesn't strictly need visibility optimization, but kept for consistency
+                this._boundAnimate = () => this.animate();
+
                 this.resize();
                 window.addEventListener('resize', this.resize.bind(this));
                 
@@ -191,18 +248,22 @@
             }
             sRandRange(a, b) { return a + this.sRand() * (b - a); }
 
-            project(x, y, z) {
-                const cr = Math.cos(ROT_Y), sr = Math.sin(ROT_Y);
-                const cx = Math.cos(ROT_X), sx = Math.sin(ROT_X);
-                let x1 = x * cr - z * sr;
-                let z1 = x * sr + z * cr;
-                let y1 = y * cx - z1 * sx;
-                let z2 = y * sx + z1 * cx;
+            projectTo(x, y, z) {
+                let x1 = x * COS_RY - z * SIN_RY;
+                let z1 = x * SIN_RY + z * COS_RY;
+                let y1 = y * COS_RX - z1 * SIN_RX;
+                let z2 = y * SIN_RX + z1 * COS_RX;
                 const d = FL + z2;
-                if (d < 50) return null;
+                if (d < 50) { this._proj.valid = false; return; }
                 const scale = FL / d * this.viewScale;
-                const camFade = d < 150 ? (d - 50) / 100 : 1;
-                return { sx: this.W / 2 + x1 * scale, sy: this.H / 2 + y1 * scale, scale, z: z2, camFade };
+                const p = this._proj;
+                p.sx = this.W / 2 + x1 * scale;
+                p.sy = this.H / 2 + y1 * scale;
+                p.scale = scale;
+                p.z = z2;
+                p.camFade = d < 150 ? (d - 50) / 100 : 1;
+                p.depthFade = d < 400 ? 1 : d > 800 ? 0 : 1 - (d - 400) / 400;
+                p.valid = true;
             }
 
             buildBundles() {
@@ -220,10 +281,11 @@
                     const cp2y = o.oy * 0.2;
                     const cp2z = o.oz * 0.2 + tz * 350;
                     
+                    const phaseOffset = this.sRand(); 
                     const particles = [];
                     for (let i = 0; i < o.ptsCount; i++) {
                         particles.push({
-                            t: i / o.ptsCount,
+                            t: (i / o.ptsCount + phaseOffset) % 1,
                             offX: this.sRandRange(-o.spread, o.spread),
                             offY: this.sRandRange(-o.spread, o.spread),
                             offZ: this.sRandRange(-o.spread, o.spread),
@@ -231,161 +293,263 @@
                             alpha: this.sRandRange(0.35, 0.8)
                         });
                     }
-                    return { ox: o.ox, oy: o.oy, oz: o.oz, cp1x, cp1y, cp1z, cp2x, cp2y, cp2z, particles, originR: o.originR, baseAlpha: o.baseAlpha, densityMul: o.densityMul };
+                    return { id: o.id, ox: o.ox, oy: o.oy, oz: o.oz, cp1x, cp1y, cp1z, cp2x, cp2y, cp2z, particles, originR: o.originR, baseAlpha: o.baseAlpha, densityMul: o.densityMul };
                 });
             }
 
-            cubicBezier3D(o, cp1, cp2, dest, t) {
+            bezierTo(ox, oy, oz, c1x, c1y, c1z, c2x, c2y, c2z, t) {
                 const u = 1 - t;
                 const t2 = t * t;
                 const u2 = u * u;
                 const u3 = u2 * u;
                 const t3 = t2 * t;
-                return {
-                    x: u3 * o.x + 3 * u2 * t * cp1.x + 3 * u * t2 * cp2.x + t3 * dest.x,
-                    y: u3 * o.y + 3 * u2 * t * cp1.y + 3 * u * t2 * cp2.y + t3 * dest.y,
-                    z: u3 * o.z + 3 * u2 * t * cp1.z + 3 * u * t2 * cp2.z + t3 * dest.z
-                };
+                const ut3 = 3 * u2 * t;
+                const ut32 = 3 * u * t2;
+                this._pos.x = u3 * ox + ut3 * c1x + ut32 * c2x;
+                this._pos.y = u3 * oy + ut3 * c1y + ut32 * c2y;
+                this._pos.z = u3 * oz + ut3 * c1z + ut32 * c2z;
             }
 
             animate() {
-                this.ctx.clearRect(0, 0, this.W, this.H);
+                if (!this.isVisible) return;
+                
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.W, this.H);
+                
+                ctx.fillStyle = '#000';
+                ctx.strokeStyle = '#000';
+                
                 const allItems = [];
 
-                this.bundles.forEach(b => {
+                for (let bi = 0; bi < this.bundles.length; bi++) {
+                    const b = this.bundles[bi];
                     const bundlePts = [];
-                    const originProj = this.project(b.ox, b.oy, b.oz);
-                    if (originProj) {
-                        allItems.push({ type: 'origin', x: originProj.sx, y: originProj.sy, r: b.originR * originProj.scale, z: originProj.z, scale: originProj.scale, densityMul: b.densityMul, camFade: originProj.camFade });
+                    const linePts = [];
+                    
+                    this.projectTo(b.ox, b.oy, b.oz);
+                    if (this._proj.valid) {
+                        const p = this._proj;
+                        allItems.push({ t: 1, id: b.id, x: p.sx, y: p.sy, r: b.originR * p.scale, z: p.z, s: p.scale, dm: b.densityMul, cf: p.camFade, df: p.depthFade });
                     }
                     
-                    b.particles.forEach(p => {
-                        p.t += PARTICLE_SPEED;
-                        if (p.t > 1) p.t -= 1;
-                        const t = p.t;
-                        
+                    const particles = b.particles;
+                    for (let pi = 0; pi < particles.length; pi++) {
+                        const pa = particles[pi];
+                        pa.t += PARTICLE_SPEED;
+                        if (pa.t > 1) pa.t -= 1;
+                        const t = pa.t;
                         const squeeze = (1 - t * t) * Math.min(1, t * 15);
-                        const pos = this.cubicBezier3D(
-                            { x: b.ox + p.offX * squeeze, y: b.oy + p.offY * squeeze, z: b.oz + p.offZ * squeeze },
-                            { x: b.cp1x + p.offX * squeeze * 0.4, y: b.cp1y + p.offY * squeeze * 0.4, z: b.cp1z + p.offZ * squeeze * 0.4 },
-                            { x: b.cp2x + p.offX * squeeze * 0.1, y: b.cp2y + p.offY * squeeze * 0.1, z: b.cp2z + p.offZ * squeeze * 0.1 },
-                            { x: 0, y: 0, z: 0 },
+                        
+                        const sox = pa.offX * squeeze, soy = pa.offY * squeeze, soz = pa.offZ * squeeze;
+                        this.bezierTo(
+                            b.ox + sox, b.oy + soy, b.oz + soz,
+                            b.cp1x + sox * 0.4, b.cp1y + soy * 0.4, b.cp1z + soz * 0.4,
+                            b.cp2x + sox * 0.1, b.cp2y + soy * 0.1, b.cp2z + soz * 0.1,
                             t
                         );
                         
-                        const distFromCenter = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z);
-                        if (distFromCenter < SPHERE_R) return;
+                        const px = this._pos.x, py = this._pos.y, pz = this._pos.z;
+                        const distSq = px * px + py * py + pz * pz;
+                        if (distSq < SPHERE_R_SQ) continue;
                         
-                        const proj = this.project(pos.x, pos.y, pos.z);
-                        if (!proj) return;
+                        this.projectTo(px, py, pz);
+                        if (!this._proj.valid) continue;
                         
+                        const distFromCenter = Math.sqrt(distSq);
+                        const proj = this._proj;
                         const fadeIn = t < FADE_IN_T ? t / FADE_IN_T : 1;
                         const sphereFade = distFromCenter < FADE_START ? (distFromCenter - SPHERE_R) / (FADE_START - SPHERE_R) : 1;
-                        const fade = fadeIn * sphereFade * proj.camFade;
+                        const finalAlpha = pa.alpha * fadeIn * sphereFade * proj.camFade * proj.depthFade * b.densityMul;
                         
-                        bundlePts.push({
-                            x: proj.sx, y: proj.sy, scale: proj.scale, z: proj.z,
-                            wx: pos.x, wy: pos.y, wz: pos.z,
-                            size: p.size * BASE_DOT_SIZE * proj.scale,
-                            alpha: p.alpha * fade * b.densityMul
-                        });
-                    });
+                        const pt = {
+                            t: 2, 
+                            x: proj.sx, y: proj.sy, z: proj.z,
+                            wx: px, wy: py, wz: pz,
+                            sz: pa.size * BASE_DOT_SIZE * proj.scale,
+                            a: finalAlpha, s: proj.scale
+                        };
+                        bundlePts.push(pt);
+                        if (finalAlpha > MIN_ALPHA_FOR_LINE) linePts.push(pt);
+                    }
 
-                    for (let i = 0; i < bundlePts.length; i++) {
-                        for (let j = i + 1; j < bundlePts.length; j++) {
-                            const a = bundlePts[i], c = bundlePts[j];
+                    for (let i = 0; i < linePts.length; i++) {
+                        const a = linePts[i];
+                        for (let j = i + 1; j < linePts.length; j++) {
+                            const c = linePts[j];
                             const dx = a.wx - c.wx, dy = a.wy - c.wy, dz = a.wz - c.wz;
-                            const dist3D = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                            if (dist3D < CONNECT_DIST_3D * 1.2) {
-                                const avgScale = (a.scale + c.scale) / 2;
-                                const lineAlpha = (1 - dist3D / (CONNECT_DIST_3D * 1.2)) * Math.min(a.alpha, c.alpha) * b.baseAlpha * LINE_ALPHA_MUL;
-                                const thickness = BASE_LINE_W * avgScale;
-                                allItems.push({ type: 'line', x1: a.x, y1: a.y, x2: c.x, y2: c.y, alpha: lineAlpha, z: (a.z + c.z) / 2, thickness });
+                            const dSq = dx * dx + dy * dy + dz * dz;
+                            if (dSq < CONNECT_THRESH_SQ) {
+                                const dist3D = Math.sqrt(dSq);
+                                allItems.push({
+                                    t: 3, 
+                                    x1: a.x, y1: a.y, x2: c.x, y2: c.y,
+                                    a: (1 - dist3D / CONNECT_THRESH) * Math.min(a.a, c.a) * b.baseAlpha * LINE_ALPHA_MUL,
+                                    z: (a.z + c.z) * 0.5,
+                                    w: BASE_LINE_W * (a.s + c.s) * 0.5
+                                });
                             }
                         }
                     }
-                    bundlePts.forEach(p => allItems.push({ type: 'dot', ...p }));
-                });
+                    for (let i = 0; i < bundlePts.length; i++) {
+                        allItems.push(bundlePts[i]);
+                    }
+                }
 
-                const sphereProj = this.project(0, 0, 0);
-                if (sphereProj) allItems.push({ type: 'sphere', z: 0, proj: sphereProj });
+                this.projectTo(0, 0, 0);
+                if (this._proj.valid) allItems.push({ t: 4, z: 0, sx: this._proj.sx, sy: this._proj.sy, s: this._proj.scale });
 
                 allItems.sort((a, b) => b.z - a.z);
 
-                allItems.forEach(item => {
-                    if (item.type === 'line') {
-                        this.ctx.beginPath();
-                        this.ctx.moveTo(item.x1, item.y1);
-                        this.ctx.lineTo(item.x2, item.y2);
-                        this.ctx.strokeStyle = `rgba(0,0,0,${Math.min(item.alpha, 1)})`;
-                        this.ctx.lineWidth = item.thickness;
-                        this.ctx.stroke();
-                    } else if (item.type === 'dot') {
-                        this.ctx.beginPath();
-                        this.ctx.arc(item.x, item.y, item.size, 0, Math.PI * 2);
-                        this.ctx.fillStyle = `rgba(0,0,0,${Math.min(item.alpha, 1)})`;
-                        this.ctx.fill();
-                    } else if (item.type === 'origin') {
-                        const strokeW = item.r * ORIGIN_STROKE_RATIO;
-                        this.ctx.beginPath();
-                        this.ctx.arc(item.x, item.y, item.r, 0, Math.PI * 2);
-                        this.ctx.strokeStyle = item.densityMul === 2 ? '#000' : 'rgba(0,0,0,0.5)';
-                        this.ctx.lineWidth = Math.max(0.15, strokeW);
-                        this.ctx.stroke();
+                for (let i = 0; i < allItems.length; i++) {
+                    const item = allItems[i];
+                    if (item.t === 3) { // line
+                        ctx.globalAlpha = Math.min(item.a, 1);
+                        ctx.lineWidth = item.w;
+                        ctx.beginPath();
+                        ctx.moveTo(item.x1, item.y1);
+                        ctx.lineTo(item.x2, item.y2);
+                        ctx.stroke();
+                    } else if (item.t === 2) { // dot
+                        ctx.globalAlpha = Math.min(item.a, 1);
+                        ctx.beginPath();
+                        ctx.arc(item.x, item.y, item.sz, 0, TWO_PI);
+                        ctx.fill();
+                    } else if (item.t === 1) { // origin
+                        const baseA = item.dm === 2 ? 1 : 0.5;
+                        const fA = Math.min(baseA * item.cf * item.df, 1);
+                        ctx.globalAlpha = fA;
                         
-                        const dotR = BASE_DOT_SIZE * item.scale * ORIGIN_DOT_MUL;
-                        this.ctx.beginPath();
-                        this.ctx.arc(item.x, item.y, dotR, 0, Math.PI * 2);
-                        this.ctx.fillStyle = item.densityMul === 2 ? '#000' : 'rgba(0,0,0,0.5)';
-                        this.ctx.fill();
-                    } else if (item.type === 'sphere') {
-                        const s = item.proj;
-                        const r = SPHERE_R * s.scale;
-                        this.ctx.beginPath();
-                        this.ctx.arc(s.sx, s.sy, r, 0, Math.PI * 2);
-                        this.ctx.fillStyle = '#000';
-                        this.ctx.fill();
-                    }
-                });
+                        ctx.lineWidth = Math.max(0.15, item.r * ORIGIN_STROKE_RATIO);
+                        ctx.beginPath();
+                        ctx.arc(item.x, item.y, item.r, 0, TWO_PI);
+                        ctx.stroke();
+                        
+                        ctx.beginPath();
+                        ctx.arc(item.x, item.y, BASE_DOT_SIZE * item.s * ORIGIN_DOT_MUL, 0, TWO_PI);
+                        ctx.fill();
 
-                this.rafId = requestAnimationFrame(() => this.animate());
+                        if (item.id) {
+                            ctx.fillStyle = '#d44';
+                            ctx.font = 'bold 11px monospace';
+                            ctx.fillText(item.id, item.x + item.r + 3, item.y + 3);
+                            ctx.fillStyle = '#000'; // Reset
+                        }
+                    } else if (item.t === 4) { // sphere
+                        ctx.globalAlpha = 1;
+                        ctx.beginPath();
+                        ctx.arc(item.sx, item.sy, SPHERE_R * item.s, 0, TWO_PI);
+                        ctx.fill();
+                    }
+                }
+                
+                ctx.globalAlpha = 1; 
+
+                this.rafId = requestAnimationFrame(this._boundAnimate);
+            }
+        }
+
+        function renderBundleList() {
+            const container = document.getElementById('bundle-list');
+            container.innerHTML = '<div style="font-weight:bold; margin-bottom:5px;">Bundles (' + currentOrigins.length + ')</div>';
+            currentOrigins.forEach((o, index) => {
+                const el = document.createElement('div');
+                el.className = 'bundle-item';
+                
+                const header = document.createElement('div');
+                header.className = 'header';
+                header.innerHTML = `<span style="${o.isHidden ? 'text-decoration:line-through;color:#aaa;' : ''}"><b>${o.id}</b></span>`;
+                
+                const actions = document.createElement('div');
+                
+                const btnHide = document.createElement('button');
+                btnHide.className = 'hide-btn';
+                btnHide.textContent = o.isHidden ? 'Show' : 'Hide';
+                btnHide.onclick = () => {
+                    o.isHidden = !o.isHidden;
+                    applyCurrentOrigins();
+                };
+                
+                const btn = document.createElement('button');
+                btn.className = 'del-btn';
+                btn.textContent = 'Del';
+                btn.onclick = () => {
+                    currentOrigins.splice(index, 1);
+                    applyCurrentOrigins();
+                };
+                
+                actions.appendChild(btnHide);
+                actions.appendChild(btn);
+                header.appendChild(actions);
+                el.appendChild(header);
+
+                const coordsDiv = document.createElement('div');
+                coordsDiv.className = 'coords-edit';
+                coordsDiv.innerHTML = `
+                    <label>x: <input type="number" step="10" value="${o.ox}" data-idx="${index}" data-axis="ox"></label>
+                    <label>y: <input type="number" step="10" value="${o.oy}" data-idx="${index}" data-axis="oy"></label>
+                    <label>z: <input type="number" step="10" value="${o.oz}" data-idx="${index}" data-axis="oz"></label>
+                `;
+                el.appendChild(coordsDiv);
+
+                container.appendChild(el);
+            });
+
+            container.querySelectorAll('.coords-edit input').forEach(inp => {
+                inp.addEventListener('change', (e) => {
+                    const idx = parseInt(e.target.getAttribute('data-idx'));
+                    const axis = e.target.getAttribute('data-axis');
+                    const val = parseFloat(e.target.value) || 0;
+                    currentOrigins[idx][axis] = val;
+                    applyCurrentOrigins(true); // true = skip rendering list to keep focus
+                });
+            });
+        }
+
+        function applyCurrentOrigins(skipRenderList = false) {
+            const activeOrigins = currentOrigins.filter(o => !o.isHidden);
+            const strArr = activeOrigins.map(o => {
+                const copy = {...o};
+                delete copy.id; // 최종 출력에는 id 제외
+                delete copy.isHidden;
+                return JSON.stringify(copy);
+            });
+            document.getElementById('code-output').value = "const ORIGINS = [\n  " + strArr.join(",\n  ") + "\n];";
+
+            if(activeBackground) {
+                activeBackground.destroy();
+            }
+            activeBackground = new SynapseBackground('bg-canvas', activeOrigins);
+            if (!skipRenderList) {
+                renderBundleList();
             }
         }
 
         function run() {
             const seedStr = document.getElementById('seed-input').value;
             localStorage.setItem('synapse_last_seed', seedStr);
-            const newOrigins = generateOrigins(seedStr);
-            
-            // Format output for user
-            const strArr = newOrigins.map(o => JSON.stringify(o));
-            document.getElementById('code-output').value = "const ORIGINS = [\n  " + strArr.join(",\n  ") + "\n];";
-
-            if(activeBackground) {
-                activeBackground.destroy();
-            }
-            activeBackground = new SynapseBackground('bg-canvas', newOrigins);
+            currentOrigins = generateOrigins(seedStr);
+            applyCurrentOrigins();
         }
 
         function loadSavedSeeds() {
             const container = document.getElementById('saved-seeds');
-            const saved = JSON.parse(localStorage.getItem('synapse_saved_seeds') || '[]');
+            const saved = JSON.parse(localStorage.getItem('synapse_saved_layouts') || '[]');
             if (saved.length === 0) {
                 container.style.display = 'none';
                 return;
             }
             container.style.display = 'block';
-            container.innerHTML = '<div style="font-size:11px; color:#666; margin-bottom:5px;">Favorite Seeds:</div>';
+            container.innerHTML = '<div style="font-size:11px; color:#666; margin-bottom:5px;">Saved Layouts:</div>';
             
-            saved.forEach((s, index) => {
+            saved.forEach((layout, index) => {
                 const el = document.createElement('div');
                 el.className = 'seed-item';
                 
                 const textSpan = document.createElement('span');
-                textSpan.textContent = s;
+                textSpan.textContent = layout.name || `Layout ${index + 1}`;
                 textSpan.onclick = () => {
-                    document.getElementById('seed-input').value = s;
-                    run();
+                    currentOrigins = JSON.parse(JSON.stringify(layout.data));
+                    applyCurrentOrigins();
                 };
                 
                 const delSpan = document.createElement('span');
@@ -394,7 +558,7 @@
                 delSpan.onclick = (e) => {
                     e.stopPropagation();
                     saved.splice(index, 1);
-                    localStorage.setItem('synapse_saved_seeds', JSON.stringify(saved));
+                    localStorage.setItem('synapse_saved_layouts', JSON.stringify(saved));
                     loadSavedSeeds();
                 };
                 
@@ -414,11 +578,11 @@
         });
 
         document.getElementById('btn-save-seed').addEventListener('click', () => {
-            const currentSeed = document.getElementById('seed-input').value;
-            const saved = JSON.parse(localStorage.getItem('synapse_saved_seeds') || '[]');
-            if (!saved.includes(currentSeed)) {
-                saved.push(currentSeed);
-                localStorage.setItem('synapse_saved_seeds', JSON.stringify(saved));
+            const saved = JSON.parse(localStorage.getItem('synapse_saved_layouts') || '[]');
+            const name = prompt("저장할 레이아웃 이름을 입력하세요:", "My Layout " + (saved.length + 1));
+            if (name) {
+                saved.push({ name: name, data: currentOrigins });
+                localStorage.setItem('synapse_saved_layouts', JSON.stringify(saved));
                 loadSavedSeeds();
             }
         });
@@ -428,6 +592,18 @@
         if (lastSeed) {
             document.getElementById('seed-input').value = lastSeed;
         }
+        
+        document.getElementById('btn-toggle-ui').addEventListener('click', (e) => {
+            const content = document.getElementById('ui-content');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                e.target.textContent = 'Hide UI';
+            } else {
+                content.style.display = 'none';
+                e.target.textContent = 'Show UI';
+            }
+        });
+
         loadSavedSeeds();
         run();
     </script>
