@@ -1,0 +1,226 @@
+/* contact.css */
+
+.contact-page {
+  max-width: 600px;
+  margin: 0 auto;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  padding: 40px 20px;
+}
+
+/* Header */
+.contact-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  margin-bottom: 50px;
+}
+
+.contact-header .huge-title {
+  font-family: 'Paperlogy', 'Pretendard', sans-serif;
+  font-size: 100px;
+  font-weight: 600;
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.4);
+  margin: 0;
+  line-height: 0.85;
+  letter-spacing: -3px;
+
+  /* width based on container to span across like in about.css */
+  width: 100cqw;
+  margin-left: calc(50% - 50cqw);
+  box-sizing: border-box;
+}
+
+.contact-header .section-divider {
+  width: 100cqw;
+  margin-left: calc(50% - 50cqw);
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
+  margin-top: 10px;
+  margin-bottom: 24px;
+}
+
+.contact-subtitle {
+  font-family: 'Pretendard', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+  word-break: keep-all;
+}
+
+/* Form Styles */
+.contact-box {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  width: 100%;
+}
+
+.form-group {
+  display: flex;
+  gap: 20px;
+  width: 100%;
+}
+
+.input-box {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.input-box input,
+.input-box textarea {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+  padding: 16px 16px 12px 16px;
+  font-family: 'Pretendard', sans-serif;
+  font-size: 15px;
+  color: #fff;
+  outline: none;
+  transition: background 0.3s ease, border-color 0.3s ease;
+  box-sizing: border-box;
+}
+
+.input-box input {
+  height: 56px;
+}
+
+.input-box textarea {
+  min-height: 140px;
+  resize: vertical;
+  padding-top: 24px;
+}
+
+/* Floating Label Logic */
+.input-box label {
+  position: absolute;
+  top: 18px;
+  left: 16px;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: 'Pretendard', sans-serif;
+}
+
+.input-box textarea ~ label {
+  top: 18px;
+}
+
+.input-box input:focus,
+.input-box textarea:focus {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.input-box input:focus ~ label,
+.input-box input:not(:placeholder-shown) ~ label,
+.input-box textarea:focus ~ label,
+.input-box textarea:not(:placeholder-shown) ~ label {
+  top: 8px;
+  left: 16px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* Make room for label in input when it floats */
+.input-box input:focus,
+.input-box input:not(:placeholder-shown) {
+  padding-top: 24px;
+  padding-bottom: 8px;
+}
+
+/* Bottom Focus Border Animation */
+.focus-border {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background-color: #fff;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.input-box input:focus ~ .focus-border,
+.input-box textarea:focus ~ .focus-border {
+  width: 100%;
+}
+
+/* Submit Button */
+.send-btn-wrapper {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.send-btn {
+  background: #fff;
+  color: #000;
+  border: none;
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-family: 'Paperlogy', 'Pretendard', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+}
+
+.send-btn span {
+  position: relative;
+  z-index: 2;
+}
+
+.send-btn .btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.send-btn:hover {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.send-btn:hover .btn-icon {
+  transform: translate(4px, -4px);
+}
+
+.send-btn:active {
+  transform: scale(0.98);
+}
+
+/* Container Queries for Mobile Adjustments */
+@container window-panel (max-width: 500px) {
+  .contact-header .huge-title {
+    font-size: 64px;
+  }
+  
+  .form-group {
+    flex-direction: column;
+    gap: 30px;
+  }
+
+  .send-btn-wrapper {
+    justify-content: stretch;
+  }
+
+  .send-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

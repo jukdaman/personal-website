@@ -1,34 +1,50 @@
 <div class="page-content contact-page">
-  <form id="contact-form" class="contact-box">
-    <div class="form-align">
+  <div class="contact-header">
+    <h1 class="huge-title">CONTACT</h1>
+    <div class="section-divider"></div>
+    <p class="contact-subtitle">새로운 프로젝트나 협업 제안, 혹은 단순한 인사를 환영합니다.<br>아래 폼을 통해 메시지를 남겨주시면 빠르게 답변해 드리겠습니다.</p>
+  </div>
+  
+  <form id="contact-form" class="contact-box" onsubmit="event.preventDefault(); alert('준비 중입니다!');">
+    <div class="form-group">
       <div class="input-box">
-        <label for="company">회사명</label>
-        <input type="text" id="company" name="company" required placeholder="company name">
+        <input type="text" id="company" name="company" required placeholder=" ">
+        <label for="company">Company</label>
+        <div class="focus-border"></div>
       </div>
       <div class="input-box">
-        <label for="name">이름</label>
-        <input type="text" id="name" name="name" required placeholder="name">
-      </div>
-    </div>
-
-    <div class="form-align">
-      <div class="input-box">
-        <label for="email">이메일</label>
-        <input type="email" id="email" name="email" required placeholder="e-mail">
-      </div>
-      <div class="input-box">
-        <label for="phone">연락처</label>
-        <input type="number" id="phone" name="phone" required placeholder="phone number">
+        <input type="text" id="name" name="name" required placeholder=" ">
+        <label for="name">Name</label>
+        <div class="focus-border"></div>
       </div>
     </div>
 
-    <div class="message-box">
-      <label for="message">문의 내용</label>
-      <textarea name="message" id="message" placeholder="프로젝트에 대해 알려주세요." required></textarea>
+    <div class="form-group">
+      <div class="input-box">
+        <input type="email" id="email" name="email" required placeholder=" ">
+        <label for="email">E-mail</label>
+        <div class="focus-border"></div>
+      </div>
+      <div class="input-box">
+        <input type="tel" id="phone" name="phone" required placeholder=" ">
+        <label for="phone">Phone</label>
+        <div class="focus-border"></div>
+      </div>
     </div>
 
-    <div class="send-btn">
-      <button type="submit">Send</button>
+    <div class="input-box message-box">
+      <textarea name="message" id="message" required placeholder=" "></textarea>
+      <label for="message">Message</label>
+      <div class="focus-border"></div>
+    </div>
+
+    <div class="send-btn-wrapper">
+      <button type="submit" class="send-btn">
+        <span>SEND MESSAGE</span>
+        <div class="btn-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        </div>
+      </button>
     </div>
   </form>
 </div>
