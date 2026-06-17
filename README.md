@@ -21,7 +21,7 @@
 바닐라(Vanilla) HTML/CSS/JS로 구현된 'OS 창(Window)' 기반의 웹사이트 포트폴리오입니다.
 
 ## 🛠 Tech Stack
-- **HTML5 / CSS3** : 프레임워크 없는 순수 바닐라 환경. 600x800px 규격의 창 UI 및 425px 이하 풀스크린 모바일 대응.
+- **HTML5 / CSS3** : 프레임워크 없는 순수 바닐라 환경. 600x800px 규격의 창 UI 및 767px 이하 풀스크린 모바일 대응.
 - **JavaScript (Vanilla)** : WindowManager 객체 기반의 싱글턴 OS 환경 및 60fps 하드웨어 가속 최적화 적용.
 
 ## 🚀 로컬 실행 방법

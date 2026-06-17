@@ -187,8 +187,8 @@
   visibility: hidden !important;
 }
 
-/* 모바일 뷰 (<425px) - Window 컴포넌트가 패널/풀스크린으로 변할 때의 베이스 컨테이너 대응 */
-@media (max-width: 425px) {
+/* 모바일 뷰 (<767px) - Window 컴포넌트가 패널/풀스크린으로 변할 때의 베이스 컨테이너 대응 */
+@media (max-width: 767px) {
   #bottom-nav {
     gap: 20px;
     height: var(--nav-height-mobile);

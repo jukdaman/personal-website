@@ -10,7 +10,7 @@ class WindowManager {
     // Z-index 통합: 모든 창이 동일한 계층을 공유 (클릭 시 최상단으로 올라오게 됨)
     this.activeZIndex = 100;
     
-    this.isMobile = window.innerWidth <= 425;
+    this.isMobile = window.innerWidth <= 767;
 
     this.bindGlobalEvents();
   }
@@ -20,7 +20,7 @@ class WindowManager {
     window.addEventListener('resize', () => {
       if (resizeRaf) return;
       resizeRaf = requestAnimationFrame(() => {
-        this.isMobile = window.innerWidth <= 425;
+        this.isMobile = window.innerWidth <= 767;
         this.handleResize();
         resizeRaf = null;
       });
@@ -40,9 +40,21 @@ class WindowManager {
       const w = rect.width;
       const h = Math.min(rect.height, ch); // 창이 화면보다 클 경우 안전 장치
       
-      // 뷰포트 너비 대비 창이 차지하던 중앙 X축 비율(centerRatioX)을 기준으로 스퀴즈 재배치
-      if (win.centerRatioX !== undefined && !win.isDragging && !win.isResizing) {
-        win.x = (cw * win.centerRatioX) - (w / 2);
+      // 뷰포트 너비 대비 창이 차지하던 중앙 X축 비율(centerRatioX) 및 스냅 상태를 기준으로 재배치
+      if (!win.isDragging && !win.isResizing) {
+        if (win.snapStateX === 'left') {
+          win.x = 0;
+        } else if (win.snapStateX === 'right') {
+          win.x = cw - w;
+        } else if (win.centerRatioX !== undefined) {
+          win.x = (cw * win.centerRatioX) - (w / 2);
+        }
+
+        if (win.snapStateY === 'top') {
+          win.y = 0;
+        } else if (win.snapStateY === 'bottom') {
+          win.y = ch - h;
+        }
       }
       
       let newX = win.x;
@@ -71,6 +83,14 @@ class WindowManager {
       // 만약 이탈 방지로 인해 화면 모서리에 강제 구출되었다면 바뀐 그 위치의 비율값을 새롭게 기억
       if (!win.isDragging && !win.isResizing) {
         win.centerRatioX = (win.x + w / 2) / cw;
+        
+        win.snapStateX = 'none';
+        if (win.x <= 4) win.snapStateX = 'left';
+        else if (win.x + w >= cw - 4) win.snapStateX = 'right';
+
+        win.snapStateY = 'none';
+        if (win.y <= 4) win.snapStateY = 'top';
+        else if (win.y + h >= ch - 4) win.snapStateY = 'bottom';
       }
       
       // 화면 너비 보정값(delta)이 반영되었거나 이탈 방지 로직이 개입했으므로 무조건 시각 렌더링 업데이트
@@ -173,73 +193,10 @@ class WindowManager {
     return fullyClear;
   }
 
-  // 1차 창 컴포넌트 간의 겹침을 분석하여 공기원근(Depth) 4단계 할당
+  // 1차 창 컴포넌트 간의 겹침을 분석하여 공기원근(Depth) 4단계 할당 (현재 비활성화)
   updateDimStates() {
-    const primaryWindows = [];
-    
-    // 1. 1차 창과 2차 창 분리
-    this.windows.forEach(win => {
-      // 2차 창은 공기원근에서 완벽히 제외
-      if (!win.id.startsWith('window-primary-')) {
-        if (win.element) {
-          win.element.classList.remove('is-dimmed', 'depth-2', 'depth-3', 'depth-4');
-        }
-        return;
-      }
-      
-      if (win.isMinimized || !win.element) return;
-      primaryWindows.push(win);
-    });
-
-    // 2. z-index 내림차순 정렬 (가장 화면 앞에 있는 창이 0번 인덱스)
-    primaryWindows.sort((a, b) => {
-      const zA = parseInt(a.element.style.zIndex) || 0;
-      const zB = parseInt(b.element.style.zIndex) || 0;
-      return zB - zA;
-    });
-
-    const rects = new Map();
-    primaryWindows.forEach(win => {
-      rects.set(win.id, win.element.getBoundingClientRect());
-    });
-
-    const depths = new Map();
-
-    // 3. 위에서부터 순서대로 겹침 여부를 확인하며 위상 깊이(Topological Depth) 계산
-    primaryWindows.forEach((win, i) => {
-      let maxDepthAbove = 0;
-      const myRect = rects.get(win.id);
-
-      // 나보다 앞에 있는(위쪽에 있는) 1차 창들과 순회하며 겹침 검사
-      for (let j = 0; j < i; j++) {
-        const topWin = primaryWindows[j];
-        const topRect = rects.get(topWin.id);
-
-        const overlapX = Math.max(0, Math.min(myRect.right, topRect.right) - Math.max(myRect.left, topRect.left));
-        const overlapY = Math.max(0, Math.min(myRect.bottom, topRect.bottom) - Math.max(myRect.top, topRect.top));
-
-        // 40px 이상의 유효한 시각적 겹침이 발생했을 때 (넓게 펼칠 때의 쾌적함을 위해 판정 완화)
-        if (overlapX > 40 && overlapY > 40) {
-          const topDepth = depths.get(topWin.id);
-          maxDepthAbove = Math.max(maxDepthAbove, topDepth);
-        }
-      }
-
-      // 내 깊이는 (나를 가리는 창들 중 가장 깊은 뎁스) + 1
-      const myDepth = maxDepthAbove + 1;
-      depths.set(win.id, myDepth);
-
-      // 4. CSS 클래스 적용
-      win.element.classList.remove('is-dimmed', 'depth-2', 'depth-3', 'depth-4');
-      
-      // 최대화된 창은 어떤 경우에도 공기원근의 영향을 받지 않고 깨끗해야 함
-      if (win.isMaximized) return;
-
-      const finalDepth = Math.min(4, myDepth); // 최대 4단계 (40%)까지만 제한
-      if (finalDepth > 1) {
-        win.element.classList.add(`depth-${finalDepth}`);
-      }
-    });
+    // 사용자의 요청으로 공기원근(Depth) 시각 효과를 제거함.
+    return;
   }
 
   // --- 스마트 배치 로직 (AABB 기반 최적 빈공간 탐색) ---
@@ -525,9 +482,17 @@ class WindowInstance {
     this.bindEvents();
     this.updateTransform();
     
-    // 초기 렌더링 직후 현재 화면 대비 중앙 X좌표 비율값 기억 (100% 밀림 없는 리사이징 위함)
+    // 초기 렌더링 직후 현재 화면 대비 중앙 X좌표 비율값 및 스냅 상태 기억
     if (this.centerRatioX === undefined) {
       this.centerRatioX = (this.x + this.width / 2) / window.innerWidth;
+      
+      this.snapStateX = 'none';
+      if (this.x <= 4) this.snapStateX = 'left';
+      else if (this.x + this.width >= window.innerWidth - 4) this.snapStateX = 'right';
+
+      this.snapStateY = 'none';
+      if (this.y <= 4) this.snapStateY = 'top';
+      else if (this.y + this.height >= window.innerHeight - 4) this.snapStateY = 'bottom';
     }
   }
 
@@ -614,6 +579,12 @@ class WindowInstance {
       this.isDragging = true;
       this.hasMovedDragging = false; // 드래그가 실제로 일어났는지 추적
       this._dragSourceIsTitleBar = (e.currentTarget === titleBar);
+      
+      this.logicalX = this.x;
+      this.logicalY = this.y;
+      this.logicalWidth = this.width;
+      this.logicalHeight = this.height;
+
       // is-moving 클래스는 실제 움직임이 감지된 이후에 추가 (onMouseMove에서 처리)
       this.manager.bringToFront(this);
 
@@ -680,6 +651,12 @@ class WindowInstance {
       e.preventDefault();
       this.isResizing = true;
       this.resizeDir = e.target.className.replace('resize-handle ', '');
+      
+      this.logicalX = this.x;
+      this.logicalY = this.y;
+      this.logicalWidth = this.width;
+      this.logicalHeight = this.height;
+
       this.manager.bringToFront(this);
       this.element.classList.add('is-moving');
 
@@ -731,38 +708,54 @@ class WindowInstance {
         // y 좌표는 화면 최상단 유지
         this.y = 0;
         
+        this.logicalX = this.x;
+        this.logicalY = this.y;
+        this.logicalWidth = this.width;
+        this.logicalHeight = this.height;
+
         // 즉시 강제 렌더링 업데이트하여 시각적으로 튀기 전에 맞춤
         this.updateTransform();
       }
       this.hasMovedDragging = true;
 
-      this.x += dx;
-      this.y += dy;
+      this.logicalX += dx;
+      this.logicalY += dy;
+
+      const snap = this.calculateSnap(this.logicalX, this.logicalY, this.logicalWidth, this.logicalHeight, false, '');
+      this.x = snap.x;
+      this.y = snap.y;
     } else if (this.isResizing) {
       const minW = 300;
       const minH = 200;
 
       // 위치 이동과 크기 변경을 동시 반영해야 하는 경우(nw, n, w 등)
       if (this.resizeDir.includes('e')) {
-        this.width = Math.max(minW, this.width + dx);
+        this.logicalWidth = Math.max(minW, this.logicalWidth + dx);
       }
       if (this.resizeDir.includes('s')) {
-        this.height = Math.max(minH, this.height + dy);
+        this.logicalHeight = Math.max(minH, this.logicalHeight + dy);
       }
       if (this.resizeDir.includes('w')) {
-        const newWidth = Math.max(minW, this.width - dx);
+        const newWidth = Math.max(minW, this.logicalWidth - dx);
         if (newWidth > minW) {
-          this.width = newWidth;
-          this.x += dx;
+          this.logicalWidth = newWidth;
+          this.logicalX += dx;
         }
       }
       if (this.resizeDir.includes('n')) {
-        const newHeight = Math.max(minH, this.height - dy);
+        const newHeight = Math.max(minH, this.logicalHeight - dy);
         if (newHeight > minH) {
-          this.height = newHeight;
-          this.y += dy;
+          this.logicalHeight = newHeight;
+          this.logicalY += dy;
         }
       }
+
+      const snap = this.calculateSnap(this.logicalX, this.logicalY, this.logicalWidth, this.logicalHeight, true, this.resizeDir);
+      
+      this.x = snap.x;
+      this.y = snap.y;
+      this.width = Math.max(minW, snap.w);
+      this.height = Math.max(minH, snap.h);
     }
 
     this.lastMouseX = clientX;
@@ -774,13 +767,105 @@ class WindowInstance {
     }
   }
 
+  calculateSnap(logX, logY, logW, logH, isResizing, resizeDir) {
+    const SNAP_THRESHOLD = 4;
+    const cw = window.innerWidth;
+    const ch = window.innerHeight;
+
+    let outX = logX;
+    let outY = logY;
+    let outW = logW;
+    let outH = logH;
+
+    const leftTargets = [0, cw];
+    const rightTargets = [0, cw];
+    const topTargets = [0, ch];
+    const bottomTargets = [0, ch];
+
+    this.manager.windows.forEach(win => {
+      if (win.id !== this.id && !win.isMinimized && win.element && !win.isMaximized) {
+        leftTargets.push(win.x, win.x + win.width);
+        rightTargets.push(win.x, win.x + win.width);
+        topTargets.push(win.y, win.y + win.height);
+        bottomTargets.push(win.y, win.y + win.height);
+      }
+    });
+
+    const getSnapOffset = (val, targets) => {
+      let closestOffset = 0;
+      let minDiff = SNAP_THRESHOLD;
+      for (const t of targets) {
+        const diff = t - val;
+        if (Math.abs(diff) < Math.abs(minDiff)) {
+          minDiff = diff;
+          closestOffset = diff;
+        }
+      }
+      return closestOffset;
+    };
+
+    if (!isResizing) {
+      const snapLeft = getSnapOffset(logX, leftTargets);
+      const snapRight = getSnapOffset(logX + logW, rightTargets);
+      
+      if (snapLeft !== 0 && Math.abs(snapLeft) <= Math.abs(snapRight !== 0 ? snapRight : SNAP_THRESHOLD)) {
+        outX += snapLeft;
+      } else if (snapRight !== 0) {
+        outX += snapRight;
+      }
+
+      const snapTop = getSnapOffset(logY, topTargets);
+      const snapBottom = getSnapOffset(logY + logH, bottomTargets);
+
+      if (snapTop !== 0 && Math.abs(snapTop) <= Math.abs(snapBottom !== 0 ? snapBottom : SNAP_THRESHOLD)) {
+        outY += snapTop;
+      } else if (snapBottom !== 0) {
+        outY += snapBottom;
+      }
+
+    } else {
+      if (resizeDir.includes('e')) {
+        const snapRight = getSnapOffset(logX + logW, rightTargets);
+        if (snapRight !== 0) outW += snapRight;
+      }
+      if (resizeDir.includes('w')) {
+        const snapLeft = getSnapOffset(logX, leftTargets);
+        if (snapLeft !== 0) {
+          outX += snapLeft;
+          outW -= snapLeft;
+        }
+      }
+      if (resizeDir.includes('s')) {
+        const snapBottom = getSnapOffset(logY + logH, bottomTargets);
+        if (snapBottom !== 0) outH += snapBottom;
+      }
+      if (resizeDir.includes('n')) {
+        const snapTop = getSnapOffset(logY, topTargets);
+        if (snapTop !== 0) {
+          outY += snapTop;
+          outH -= snapTop;
+        }
+      }
+    }
+
+    return { x: outX, y: outY, w: outW, h: outH };
+  }
+
   onMouseUp() {
     this.isDragging = false;
     this.isResizing = false;
     this.element.classList.remove('is-moving');
     
-    // 사용자가 마우스를 놓아 위치와 크기가 픽스되는 순간의 X축 중앙 비율값을 백업
+    // 사용자가 마우스를 놓아 위치와 크기가 픽스되는 순간의 상태값 백업
     this.centerRatioX = (this.x + this.width / 2) / window.innerWidth;
+    
+    this.snapStateX = 'none';
+    if (this.x <= 4) this.snapStateX = 'left';
+    else if (this.x + this.width >= window.innerWidth - 4) this.snapStateX = 'right';
+
+    this.snapStateY = 'none';
+    if (this.y <= 4) this.snapStateY = 'top';
+    else if (this.y + this.height >= window.innerHeight - 4) this.snapStateY = 'bottom';
 
     if (this.rafId) {
       cancelAnimationFrame(this.rafId);

@@ -4,7 +4,7 @@
 .about-page.dark-theme {
   max-width: 600px;
   margin: 0 auto;
-  color: #fff;
+  color: #111;
   display: flex;
   flex-direction: column;
   padding: 40px 20px;
@@ -47,14 +47,14 @@
   letter-spacing: -2px;
   margin: 0;
   line-height: 1;
-  color: #fff;
+  color: #111;
 }
 
 .profile-titles .handle {
   font-family: 'Paperlogy', 'Pretendard', sans-serif;
   font-size: 20px;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(0, 0, 0, 0.5);
   letter-spacing: -0.5px;
   margin: 0;
   margin-top: 2px;
@@ -86,7 +86,7 @@
 .info-row span {
   font-size: 13px;
   font-weight: 400;
-  color: rgba(255, 255, 255, 1);
+  color: rgba(0, 0, 0, 1);
 }
 
 /* 2. Job Roles */
@@ -117,31 +117,6 @@
   align-items: flex-start;
   width: 100%;
   margin-bottom: 100px;
-}
-
-.huge-title {
-  font-family: 'Paperlogy', 'Pretendard', sans-serif;
-  font-size: 128px;
-  font-weight: 600;
-  color: transparent;
-  -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.4);
-  margin: 0;
-  line-height: 0.85;
-  letter-spacing: -4px;
-
-  /* page-content를 벗어나 window-content-area 좌측에 붙는 효과 */
-  width: 100cqw;
-  margin-left: calc(50% - 50cqw);
-  box-sizing: border-box;
-}
-
-.section-divider {
-  width: 100cqw;
-  margin-left: calc(50% - 50cqw);
-  height: 1px;
-  background: rgba(255, 255, 255, 0.2);
-  margin-top: 10px;
-  margin-bottom: 24px;
 }
 
 /* Skills Section Specifics */
@@ -176,6 +151,7 @@
 .skill-icon::before {
   /* 아웃라인 아이콘 (기본) */
   opacity: 1;
+  filter: invert(1);
 }
 
 .skill-icon::after {
@@ -278,6 +254,7 @@
 
 .profile-icon::before {
   opacity: 0.8;
+  filter: invert(1);
   /* Base opacity as requested previously */
 }
 
@@ -319,7 +296,7 @@
   font-size: 16px;
   font-weight: 300;
   line-height: 2.2;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(0, 0, 0, 0.8);
   letter-spacing: -0.3px;
 }
 

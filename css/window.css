@@ -8,7 +8,7 @@
   width: 600px;
   /* 기본 크기 */
   height: 800px;
-  background-color: #161616;
+  background-color: #ffffff;
   border: 1px solid rgba(0, 0, 0, 1);
   display: flex;
   flex-direction: column;
@@ -60,47 +60,6 @@
   color: rgba(64, 64, 64, 0.8);
 }
 
-/* 겹쳐서 가려진 창: 흰색 오버레이로 공기원근 효과 (4단계) */
-.os-window::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: #fff;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  z-index: 100;
-}
-
-.os-window.depth-2 {
-  border-color: rgba(0, 0, 0, 0.8);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
-}
-
-.os-window.depth-2::after {
-  opacity: 0.1;
-}
-
-.os-window.depth-3 {
-  border-color: rgba(0, 0, 0, 0.6);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.09);
-}
-
-.os-window.depth-3::after {
-  opacity: 0.15;
-}
-
-.os-window.depth-4 {
-  border-color: rgba(0, 0, 0, 0.4);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
-}
-
-.os-window.depth-4::after {
-  opacity: 0.2;
-}
 
 /* 드래그 및 리사이즈 도중에는 내부 iframe, 이미지 등에 이벤트 뺏기지 않도록 차단 */
 .os-window.is-moving .window-content-area,
@@ -170,7 +129,7 @@
 /* 내부 콘텐츠 영역 (흰색 바탕, 커스텀 스크롤) */
 .window-content-area {
   flex: 1;
-  background-color: #161616;
+  background-color: #ffffff;
   overflow-y: auto;
   overflow-x: hidden;
   position: relative;
@@ -190,6 +149,32 @@
 }
 
 
+
+/* --- 전역 섹션 타이포그래피 (모든 창 공통) --- */
+.huge-title {
+  font-family: 'Paperlogy', 'Pretendard', sans-serif;
+  font-size: 128px;
+  font-weight: 600;
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(0, 0, 0, 0.6);
+  margin: 0;
+  line-height: 0.85;
+  letter-spacing: -4px;
+
+  /* page-content를 벗어나 window-content-area 좌측에 붙는 효과 */
+  width: 100cqw;
+  margin-left: calc(50% - 50cqw);
+  box-sizing: border-box;
+}
+
+.section-divider {
+  width: 100cqw;
+  margin-left: calc(50% - 50cqw);
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+  margin-top: 10px;
+  margin-bottom: 24px;
+}
 
 /* --- 리사이즈 핸들 (8방향) --- */
 .resize-handle {
@@ -262,9 +247,9 @@
 }
 
 
-/* --- 모바일 뷰 (<425px) --- */
+/* --- 모바일 뷰 (<767px) --- */
 /* 모바일: 윈도우 창이 화면 전체를 덮는 패널 형태 */
-@media (max-width: 425px) {
+@media (max-width: 767px) {
   .os-window {
     width: 100% !important;
     height: 100% !important;
@@ -292,7 +277,7 @@
 .page-content {
   opacity: 0;
   animation: fadeIn 0.4s ease forwards;
-  color: #fff;
+  color: #111;
   font-family: inherit;
 }
 
@@ -312,7 +297,7 @@
 .page-content p {
   font-size: 15px;
   line-height: 1.6;
-  color: #aaa;
+  color: #555;
   margin-bottom: 16px;
 }
 

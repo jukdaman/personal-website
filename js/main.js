@@ -27,6 +27,28 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- 2. 하단 네비게이션 제어 ---
   const navBtns = document.querySelectorAll('.nav-btn');
 
+  function switchMobileWindow(targetWinId) {
+    if (!window.windowManager.isMobile) return;
+    
+    const primaryToMinimize = [];
+    const secondaryToClose = [];
+
+    window.windowManager.windows.forEach((w, id) => {
+      if (!w.isMinimized && id !== targetWinId) {
+        if (id.startsWith('window-primary-')) {
+          primaryToMinimize.push(id);
+        } else {
+          if (w.config.parentId !== targetWinId) {
+            secondaryToClose.push(id);
+          }
+        }
+      }
+    });
+
+    primaryToMinimize.forEach(id => window.windowManager.minimizeWindow(id));
+    secondaryToClose.forEach(id => window.windowManager.closeWindow(id));
+  }
+
   // 닫기 상태 초기화 헬퍼
   function resetNavCloseState(btn, win) {
     if (btn) btn.classList.remove('will-close', 'will-restore');
@@ -70,7 +92,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // 일단 무조건 맨 위로 끌어올림
         window.windowManager.bringToFront(win);
         
-        if (isCoveredByMaximized) {
+        if (window.windowManager.isMobile && !wasTopWindow) {
+          // 모바일: 가려진 창(맨 위가 아닌 창)의 버튼을 눌렀다면 일단 최상단으로 끌어올리기만 함 (닫기 무시)
+          isClosePrepared = false;
+        } else if (isCoveredByMaximized) {
           // 어떤 상태의 창이든 다른 웅장한 최대화 창에 가려져 있었다면, 이번 클릭은 '구출(꺼내기)' 목적이므로 닫힘/복원 트리거를 무시
           isClosePrepared = false;
         } else if (win.isMaximized && !wasTopWindow) {
@@ -115,6 +140,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // 이미 켜져있는 창이 다른 최대화 창 등에 의해 구출된 경우(isClosePrepared === false) 
         // openPrimaryWindow(오픈/토글 내장함수)를 실행하면 다시 꺼져버리는(토글) 문제가 발생하므로,
         // 진짜 닫혀있는 상태일 때만 openPrimaryWindow를 실행하도록 방어막 추가!
+        // 모바일 환경일 경우 창 전환 로직(나머지 숨기기) 실행
+        if (window.windowManager.isMobile) {
+          switchMobileWindow(winId);
+        }
+
         if (!win || win.isMinimized) {
           openPrimaryWindow(pageId, index, navBtns.length);
         }

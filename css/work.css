@@ -1,5 +1,26 @@
 /* work.css */
 
+/* Work 페이지 헤더 (huge-title + section-divider) */
+.work-header {
+  padding: 40px 20px 0;
+}
+
+.work-header .huge-title {
+  font-family: 'Paperlogy', 'Pretendard', sans-serif;
+  font-size: 100px;
+  font-weight: 600;
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(0, 0, 0, 0.6);
+  margin: 0;
+  line-height: 0.85;
+  letter-spacing: -3px;
+
+  /* width based on container to span across like in work.css */
+  width: 100cqw;
+  margin-left: calc(50% - 50cqw);
+  box-sizing: border-box;
+}
+
 /* --- Pinterest 스타일 Masonry (WORK 메뉴) --- */
 .masonry-grid {
   /* 기본 모바일/매우 좁은 창 설정 */
@@ -14,7 +35,7 @@
   width: 100%;
   border-radius: 12px;
   overflow: hidden;
-  background-color: #333;
+  background-color: #e0e0e0;
   /* 로딩 전 스켈레톤 컬러 */
   position: relative;
   cursor: pointer;
